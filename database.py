@@ -390,13 +390,13 @@ def _would_create_invalid_assignment(conn, event_id, drawer_id, giftee_id):
 # ===== USER MANAGEMENT FUNCTIONS =====
 
 def get_user_by_credentials(username, pin, event_id):
-    """Get user by username + PIN + event_id"""
+    """Get user by username + PIN + event_id (case insensitive username)"""
     conn = get_db_connection()
     user = conn.execute('''
         SELECT u.*, p.name as participant_name
         FROM users u
         LEFT JOIN participants p ON u.participant_id = p.id
-        WHERE u.username = ? AND u.pin_hash = ? AND u.event_id = ?
+        WHERE LOWER(u.username) = LOWER(?) AND u.pin_hash = ? AND u.event_id = ?
     ''', (username, hash_pin(pin), event_id)).fetchone()
     conn.close()
     return dict(user) if user else None

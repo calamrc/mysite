@@ -319,6 +319,13 @@ def get_event_status(event_code):
             if participant_id or (participant_name and any(p['name'] == participant_name for p in participants)):
                 is_participant = True
 
+        # Get participant name for logged-in users
+        participant_name = None
+        if user_id := current_user.get('user_id'):
+            user_info = get_user(user_id)
+            if user_info and user_info['participant_name']:
+                participant_name = user_info['participant_name']
+
         return jsonify({
             'event_code': event_code,
             'phase': event['phase'],
@@ -327,6 +334,7 @@ def get_event_status(event_code):
             'drawn_count': drawn_count,
             'participants': participant_list,
             'user_role': user_role,
+            'participant_name': participant_name,
             'is_participant': is_participant,
             'success': True
         })

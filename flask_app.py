@@ -6,7 +6,7 @@ from database import (
     draw_name, get_remaining_participants, is_event_complete,
     verify_pin, get_participant, get_db_connection,
     get_user_by_credentials, create_user, get_user, update_user_profile,
-    generate_display_name, generate_avatar_color
+    get_users_for_event, generate_display_name, generate_avatar_color
 )
 import os
 import glob

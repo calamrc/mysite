@@ -39,6 +39,8 @@ export default defineConfig({
       }
     }
   },
+  // Configure base path for Flask static serving
+  base: '/static/',
   // Define environment variables available in the frontend
   define: {
     __VUE_PROD_DEVTOOLS__: false,

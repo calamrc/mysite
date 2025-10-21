@@ -31,6 +31,12 @@ if [ ! -d "frontend/node_modules" ]; then
     cd ..
 fi
 
+# Build frontend for production (served by Flask)
+echo "🏗️  Building frontend for production..."
+cd frontend
+npm run build
+cd ..
+
 # Start backend in background
 echo "🚀 Starting Flask backend (http://localhost:5000)..."
 python flask_app.py &

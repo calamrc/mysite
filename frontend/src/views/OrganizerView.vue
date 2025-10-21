@@ -1,47 +1,24 @@
 <template>
   <div class="organizer">
-  <div class="header">
-    <div class="title-section">
-        <h1>Gift Exchange Organizer</h1>
-        <div class="event-code-display">
-          <span class="label">Event Code:</span>
-          <span class="code">{{ eventCode }}</span>
-          <button @click="copyEventCode" class="btn btn-sm btn-secondary" :disabled="codeCopied" aria-label="Copy event code">
-            <span v-if="codeCopied" aria-hidden="true">✅</span>
-            <span v-else aria-hidden="true">📋</span>
-            {{ codeCopied ? 'Copied!' : 'Copy' }}
-          </button>
-        </div>
+    <!-- Event Status Badge -->
+    <div class="status-badge" :class="eventData.phase">
+      {{ getPhaseDisplay() }}
+    </div>
+
+    <!-- Event Code Section -->
+    <div class="event-code-section">
+      <div class="event-code-display">
+        <span class="code">{{ eventCode }}</span>
+        <button @click="copyEventCode" class="btn btn-sm" :disabled="codeCopied" aria-label="Copy event code">
+          <span v-if="codeCopied" aria-hidden="true">✅</span>
+          <span v-else aria-hidden="true">📋</span>
+          {{ codeCopied ? 'Copied!' : 'Copy' }}
+        </button>
       </div>
-      <button @click="logout" class="btn btn-outline" :disabled="loggingOut">
-        <span v-if="loggingOut" class="loading-spinner" aria-hidden="true"></span>
-        {{ loggingOut ? 'Logging Out...' : '🚪 Logout' }}
-      </button>
     </div>
 
     <!-- Main Organizer Interface -->
     <div class="main-content">
-      <!-- Event Phase Info -->
-      <div class="phase-info">
-        <div class="phase-card">
-          <h3>Event Status</h3>
-          <div class="phase-details">
-            <div class="phase-indicator" :class="eventData.phase">
-              <span class="phase-badge">{{ getPhaseDisplay() }}</span>
-            </div>
-            <div class="stats">
-              <div class="stat-item">
-                <span class="stat-number">{{ eventData.joined_count || 0 }}</span>
-                <span class="stat-label">Participants</span>
-              </div>
-              <div class="stat-item">
-                <span class="stat-number">{{ eventData.drawn_count || 0 }}</span>
-                <span class="stat-label">Drawn</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
 
       <!-- Join as Participant -->
       <div v-if="eventData.phase === 'registration' && !isParticipant" class="join-participant-section">
@@ -298,47 +275,60 @@ export default {
 .organizer {
   max-width: 1200px;
   margin: 0 auto;
-  padding: 0 1rem;
-}
-
-.header {
+  padding: var(--spacing-4) var(--spacing-4);
   display: flex;
-  justify-content: space-between;
+  flex-direction: column;
   align-items: center;
-  margin-bottom: 2rem;
-  padding: 1rem;
-  background: white;
-  border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  gap: var(--spacing-8);
 }
 
-.title-section h1 {
-  margin-bottom: 0.5rem;
-  font-size: 2rem;
-  color: #2c3e50;
+.status-badge {
+  background: var(--color-primary-light);
+  color: var(--color-primary-dark);
+  padding: var(--spacing-3) var(--spacing-6);
+  border-radius: var(--radius-xl);
+  font-weight: var(--font-weight-medium);
+  font-size: var(--font-size-lg);
+  text-align: center;
+}
+
+.status-badge.registration {
+  background: var(--color-success-light);
+  color: var(--color-success-dark);
+}
+
+.status-badge.drawing {
+  background: var(--color-warning-light);
+  color: var(--color-warning-dark);
+}
+
+.event-code-section {
+  text-align: center;
 }
 
 .event-code-display {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 0.5rem;
-  margin-top: 0.5rem;
-}
-
-.event-code-display .label {
-  font-weight: bold;
-  color: #666;
+  gap: var(--spacing-4);
+  background: var(--color-surface);
+  padding: var(--spacing-6);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-md);
+  border: 1px solid var(--color-border);
 }
 
 .event-code-display .code {
-  font-family: monospace;
-  font-size: 1.2rem;
-  font-weight: bold;
-  background: #f8f9fa;
-  padding: 0.25rem 0.5rem;
-  border-radius: 4px;
-  color: #2c3e50;
-  letter-spacing: 1px;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: var(--font-size-3xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text-primary);
+  background: var(--color-background);
+  padding: var(--spacing-3);
+  border-radius: var(--radius-lg);
+  border: 2px solid var(--color-border);
+  min-width: 120px;
+  text-align: center;
+  letter-spacing: 0.025em;
 }
 
 .auth-modal {
@@ -605,20 +595,25 @@ export default {
 }
 
 @media (max-width: 768px) {
-  .header {
-    flex-direction: column;
-    gap: 1rem;
-    text-align: center;
+  .organizer {
+    padding: var(--spacing-2) var(--spacing-2);
+    gap: var(--spacing-4);
   }
 
-  .phase-details {
-    flex-direction: column;
-    gap: 1rem;
-    align-items: flex-start;
+  .status-badge {
+    padding: var(--spacing-2) var(--spacing-4);
+    font-size: var(--font-size-base);
   }
 
-  .stats {
-    gap: 1rem;
+  .event-code-display {
+    flex-direction: column;
+    gap: var(--spacing-3);
+    padding: var(--spacing-4);
+  }
+
+  .event-code-display .code {
+    font-size: var(--font-size-2xl);
+    min-width: 100px;
   }
 
   .modal-actions {

@@ -1,10 +1,5 @@
 <template>
   <div class="home">
-    <div class="hero">
-      <h1>Gift Exchange Manager</h1>
-      <p>Create secret Santa events and organize gift exchanges with friends and family</p>
-    </div>
-
     <div class="action-section">
       <!-- Join Event -->
       <div class="action-card">
@@ -91,23 +86,6 @@
         </form>
 
         <p v-if="modalError" class="error">{{ modalError }}</p>
-      </div>
-    </div>
-
-    <div class="features">
-      <div class="feature-card">
-        <h3>🎅 Secret Santa</h3>
-        <p>Random assignments ensure everyone gets a gift</p>
-      </div>
-
-      <div class="feature-card">
-        <h3>👥 Multiple Roles</h3>
-        <p>Organizers manage events, participants join and draw</p>
-      </div>
-
-      <div class="feature-card">
-        <h3>📱 Mobile Friendly</h3>
-        <p>Works great on phones and tablets</p>
       </div>
     </div>
   </div>
@@ -202,42 +180,15 @@ export default {
   flex-direction: column;
   align-items: center;
   padding: var(--spacing-8) var(--spacing-4);
-  max-width: 1200px;
+  max-width: 900px;
   margin: 0 auto;
   min-height: calc(100vh - 2 * var(--spacing-8));
-}
-
-.hero {
-  margin-bottom: var(--spacing-12);
-  text-align: center;
-}
-
-.hero h1 {
-  font-size: var(--font-size-5xl);
-  font-weight: var(--font-weight-bold);
-  color: var(--color-text-primary);
-  margin-bottom: var(--spacing-4);
-  text-shadow: var(--shadow-sm);
-  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-secondary) 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-.hero p {
-  font-size: var(--font-size-xl);
-  color: var(--color-text-secondary);
-  max-width: 600px;
-  margin: 0 auto var(--spacing-8);
-  line-height: var(--line-height-relaxed);
 }
 
 .action-section {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
   gap: var(--spacing-8);
-  margin-bottom: var(--spacing-12);
-  max-width: 900px;
   width: 100%;
 }
 
@@ -273,41 +224,7 @@ export default {
   line-height: var(--line-height-relaxed);
 }
 
-.features {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: var(--spacing-6);
-  width: 100%;
-  margin-top: var(--spacing-8);
-}
 
-.feature-card {
-  background: var(--color-surface);
-  padding: var(--spacing-6);
-  border-radius: var(--radius-xl);
-  box-shadow: var(--shadow-md);
-  border: 1px solid var(--color-border);
-  transition: all var(--transition-normal);
-  text-align: center;
-}
-
-.feature-card:hover {
-  transform: translateY(-4px);
-  box-shadow: var(--shadow-lg);
-  border-color: var(--color-primary-light);
-}
-
-.feature-card h3 {
-  color: var(--color-primary);
-  margin-bottom: var(--spacing-3);
-  font-size: var(--font-size-xl);
-  font-weight: var(--font-weight-semibold);
-}
-
-.feature-card p {
-  color: var(--color-text-secondary);
-  line-height: var(--line-height-relaxed);
-}
 
 /* Modal Styles */
 .auth-modal {
@@ -370,21 +287,13 @@ export default {
 }
 
 @media (max-width: 768px) {
-  .hero h1 {
-    font-size: 2.5rem;
-  }
-
   .action-section {
     grid-template-columns: 1fr;
-    gap: 1.5rem;
+    gap: var(--spacing-6);
   }
 
   .action-card {
-    padding: 1.5rem;
-  }
-
-  .features {
-    grid-template-columns: 1fr;
+    padding: var(--spacing-6);
   }
 
   .modal-actions {

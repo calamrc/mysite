@@ -1,6 +1,11 @@
-from flask import Flask, request, jsonify, render_template_string, make_response
+from flask import Flask, request, jsonify, render_template_string, make_response, session
 from flask_cors import CORS
-from database import init_db, get_all_tasks, get_task, create_task, update_task, delete_task
+from database import (
+    init_db, get_event_by_code, create_event, add_participant,
+    get_event_participants, update_event_phase, perform_draw,
+    draw_name, get_remaining_participants, is_event_complete,
+    verify_pin, get_participant, get_db_connection
+)
 import os
 import glob
 import logging
@@ -12,14 +17,15 @@ logger = logging.getLogger(__name__)
 
 # Create Flask app with configuration
 app = Flask(__name__)
+app.secret_key = os.environ.get('SECRET_KEY', 'gift-exchange-dev-secret-key-change-in-production')
 
 # Environment-based configuration
 FLASK_ENV = os.environ.get('FLASK_ENV', 'development')
 DEBUG = FLASK_ENV == 'development'
 
-# CORS configuration - more restrictive for production
+# CORS configuration - enable credentials for sessions
 if DEBUG:
-    CORS(app, origins=['http://localhost:5173', 'http://127.0.0.1:5173'])
+    CORS(app, origins=['http://localhost:5173', 'http://127.0.0.1:5173'], supports_credentials=True)
 else:
     # In production, allow from same domain
     CORS(app, origins=['*'], supports_credentials=True)
@@ -46,6 +52,24 @@ except Exception as e:
     if not DEBUG:
         raise  # Fail hard in production
 
+def get_current_user():
+    """Get current user from session"""
+    return session.get('user', {})
+
+def set_current_user(event_code, role, user_id=None, name=None):
+    """Set current user in session"""
+    session['user'] = {
+        'event_code': event_code,
+        'role': role,  # 'organizer' or 'participant'
+        'user_id': user_id,
+        'name': name
+    }
+    session.permanent = True
+
+def clear_current_user():
+    """Clear current user session"""
+    session.pop('user', None)
+
 @app.route('/')
 def index():
     # Try to serve the built Vue app from static directory
@@ -67,7 +91,7 @@ def index():
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Task Manager - Flask + Vue.js</title>
+    <title>Gift Exchange - Secret Santa App</title>
   </head>
   <body>
     <div id="app"></div>
@@ -75,75 +99,349 @@ def index():
   </body>
 </html>""")
 
-@app.route('/api/tasks', methods=['GET'])
-def get_tasks():
-    try:
-        tasks = get_all_tasks()
-        return jsonify({'tasks': tasks, 'success': True})
-    except Exception as e:
-        return jsonify({'error': str(e), 'success': False}), 500
+# API Routes - Gift Exchange
 
-@app.route('/api/tasks', methods=['POST'])
-def add_task():
+@app.route('/api/events', methods=['POST'])
+def create_new_event():
+    """Create a new event (FR-1)"""
     try:
         data = request.get_json()
-        if not data or 'title' not in data:
-            return jsonify({'error': 'Title is required', 'success': False}), 400
+        if not data or 'pin' not in data:
+            return jsonify({'error': 'PIN is required', 'success': False}), 400
 
-        title = data['title']
-        description = data.get('description', '')
+        pin = data['pin']
+        if not isinstance(pin, str) or len(pin) < 4:
+            return jsonify({'error': 'PIN must be at least 4 characters', 'success': False}), 400
 
-        task_id = create_task(title, description)
-        task = get_task(task_id)
+        event_id, event_code = create_event(pin)
 
-        return jsonify({'task': task, 'success': True}), 201
+        return jsonify({
+            'event_code': event_code,
+            'message': 'Event created successfully',
+            'success': True
+        }), 201
+
     except Exception as e:
-        return jsonify({'error': str(e), 'success': False}), 500
+        logger.error(f"Error creating event: {e}")
+        return jsonify({'error': 'Failed to create event', 'success': False}), 500
 
-@app.route('/api/tasks/<int:task_id>', methods=['GET'])
-def get_single_task(task_id):
+@app.route('/api/events/<event_code>/join', methods=['POST'])
+def join_event(event_code):
+    """Join an event as organizer or participant (FR-2)"""
     try:
-        task = get_task(task_id)
-        if task is None:
-            return jsonify({'error': 'Task not found', 'success': False}), 404
+        event_code = event_code.upper()
+        data = request.get_json()
 
-        return jsonify({'task': task, 'success': True})
+        if not data or 'role' not in data:
+            return jsonify({'error': 'Role is required', 'success': False}), 400
+
+        role = data['role']
+        if role not in ['organizer', 'participant']:
+            return jsonify({'error': 'Invalid role', 'success': False}), 400
+
+        # Get event
+        event = get_event_by_code(event_code)
+        if not event:
+            return jsonify({'error': 'Event not found', 'success': False}), 404
+
+        if role == 'organizer':
+            # Verify PIN
+            pin = data.get('pin', '')
+            if not verify_pin(pin, event['pin_hash']):
+                return jsonify({'error': 'Invalid PIN', 'success': False}), 401
+
+            # Set as organizer
+            set_current_user(event_code, 'organizer')
+
+            return jsonify({
+                'message': 'Joined as organizer',
+                'event_code': event_code,
+                'phase': event['phase'],
+                'success': True
+            })
+
+        elif role == 'participant':
+            # For participants, name is optional here - they can register later
+            name = data.get('name', '').strip()
+            user_id = None
+
+            if name:
+                # Try to register immediately if name provided
+                user_id = add_participant(event['id'], name)
+                if user_id is None:
+                    return jsonify({'error': 'Name already taken', 'success': False}), 409
+
+            set_current_user(event_code, 'participant', user_id=user_id, name=name)
+
+            return jsonify({
+                'message': f'Joined as participant{f" ({name})" if name else ""}',
+                'event_code': event_code,
+                'phase': event['phase'],
+                'success': True
+            })
+
     except Exception as e:
-        return jsonify({'error': str(e), 'success': False}), 500
+        logger.error(f"Error joining event: {e}")
+        return jsonify({'error': 'Failed to join event', 'success': False}), 500
 
-@app.route('/api/tasks/<int:task_id>', methods=['PUT'])
-def update_single_task(task_id):
+@app.route('/api/events/<event_code>/status', methods=['GET'])
+def get_event_status(event_code):
+    """Get event status (FR-7)"""
+    try:
+        event_code = event_code.upper()
+
+        # Get current user from session
+        current_user = get_current_user()
+        if not current_user or current_user.get('event_code') != event_code:
+            return jsonify({'error': 'Not authenticated for this event', 'success': False}), 401
+
+        # Get event
+        event = get_event_by_code(event_code)
+        if not event:
+            return jsonify({'error': 'Event not found', 'success': False}), 404
+
+        # Get participants
+        participants = get_event_participants(event['id'])
+
+        # Process participant data based on role and event phase
+        user_role = current_user.get('role')
+        is_complete = is_event_complete(event['id'])
+
+        # Filter participant list based on role
+        if user_role == 'participant':
+            # Participants only see their own status and basic participant counts
+            participant_statuses = []
+            current_participant_found = False
+            drawn_count = sum(1 for p in participants if p['has_drawn'])
+
+            for p in participants:
+                if p['id'] == current_user.get('user_id'):
+                    participant_statuses.append({
+                        'name': p['name'],
+                        'status': 'Drawn' if p['has_drawn'] else 'Joined',
+                        'giftee_name': p['giftee_name'] if p['has_drawn'] else None
+                    })
+                    current_participant_found = True
+                else:
+                    # Anonymous count only
+                    participant_statuses.append({
+                        'name': f'Participant {len([s for s in participant_statuses if not s.get("is_current_user")])}',
+                        'status': 'Drawn' if p['has_drawn'] else 'Joined',
+                        'is_anonymous': True
+                    })
+
+            participant_list = participant_statuses
+
+        else:  # organizer
+            # Organizers see full participant list
+            participant_list = [{
+                'name': p['name'],
+                'status': 'Drawn' if p['has_drawn'] else 'Joined',
+                'giftee_name': p['giftee_name'] if p['has_drawn'] else None
+            } for p in participants]
+
+        joined_count = len([p for p in participants if not p['has_drawn']])
+        drawn_count = len([p for p in participants if p['has_drawn']])
+
+        return jsonify({
+            'event_code': event_code,
+            'phase': event['phase'],
+            'is_complete': is_complete,
+            'joined_count': len(participants),
+            'drawn_count': drawn_count,
+            'participants': participant_list,
+            'user_role': user_role,
+            'success': True
+        })
+
+    except Exception as e:
+        logger.error(f"Error getting event status: {e}")
+        return jsonify({'error': 'Failed to get event status', 'success': False}), 500
+
+@app.route('/api/events/<event_code>/participants', methods=['POST'])
+def register_participant(event_code):
+    """Register a participant (FR-3)"""
+    try:
+        event_code = event_code.upper()
+        data = request.get_json()
+
+        if not data or 'name' not in data:
+            return jsonify({'error': 'Name is required', 'success': False}), 400
+
+        name = data['name'].strip()
+        if not name:
+            return jsonify({'error': 'Name cannot be empty', 'success': False}), 400
+
+        # Get event
+        event = get_event_by_code(event_code)
+        if not event:
+            return jsonify({'error': 'Event not found', 'success': False}), 404
+
+        if event['phase'] != 'registration':
+            return jsonify({'error': 'Event is no longer accepting registrations', 'success': False}), 400
+
+        # Add participant
+        participant_id = add_participant(event['id'], name)
+        if participant_id is None:
+            return jsonify({'error': 'Name already taken', 'success': False}), 409
+
+        # Update session if this is the current user
+        current_user = get_current_user()
+        if current_user.get('event_code') == event_code and current_user.get('role') == 'participant':
+            set_current_user(event_code, 'participant', user_id=participant_id, name=name)
+
+        return jsonify({
+            'message': f'Successfully joined as {name}',
+            'participant_id': participant_id,
+            'success': True
+        }), 201
+
+    except Exception as e:
+        logger.error(f"Error registering participant: {e}")
+        return jsonify({'error': 'Failed to register participant', 'success': False}), 500
+
+@app.route('/api/events/<event_code>/start-drawing', methods=['POST'])
+def start_drawing_phase(event_code):
+    """Start drawing phase (FR-4)"""
+    try:
+        event_code = event_code.upper()
+
+        # Check authentication
+        current_user = get_current_user()
+        if not current_user or current_user.get('event_code') != event_code or current_user.get('role') != 'organizer':
+            return jsonify({'error': 'Only event organizers can start the drawing phase', 'success': False}), 403
+
+        # Get event
+        event = get_event_by_code(event_code)
+        if not event:
+            return jsonify({'error': 'Event not found', 'success': False}), 404
+
+        if event['phase'] != 'registration':
+            return jsonify({'error': f'Event is already in {event["phase"]} phase', 'success': False}), 400
+
+        # Check minimum participants
+        participants = get_event_participants(event['id'])
+        if len(participants) < 2:
+            return jsonify({'error': 'At least 2 participants required to start drawing', 'success': False}), 400
+
+        # Update phase
+        update_event_phase(event['id'], 'drawing')
+
+        return jsonify({
+            'message': 'Drawing phase started successfully',
+            'phase': 'drawing',
+            'participant_count': len(participants),
+            'success': True
+        })
+
+    except Exception as e:
+        logger.error(f"Error starting drawing phase: {e}")
+        return jsonify({'error': 'Failed to start drawing phase', 'success': False}), 500
+
+@app.route('/api/events/<event_code>/draw', methods=['POST'])
+def perform_user_draw(event_code):
+    """Perform a draw for the current participant (FR-5)"""
+    try:
+        event_code = event_code.upper()
+
+        # Check authentication
+        current_user = get_current_user()
+        if not current_user or current_user.get('event_code') != event_code or current_user.get('role') != 'participant':
+            return jsonify({'error': 'Participant authentication required', 'success': False}), 401
+
+        participant_id = current_user.get('user_id')
+        if not participant_id:
+            return jsonify({'error': 'Participant not registered', 'success': False}), 400
+
+        # Get event
+        event = get_event_by_code(event_code)
+        if not event:
+            return jsonify({'error': 'Event not found', 'success': False}), 404
+
+        participant_name = current_user.get('name', 'Unknown')
+
+        # Perform the draw
+        result = perform_draw(event['id'], participant_id, participant_name)
+
+        if result['success']:
+            # Update session to reflect drawn state
+            set_current_user(event_code, 'participant', user_id=participant_id, name=participant_name)
+
+            # Check if event is now complete
+            is_complete = is_event_complete(event['id'])
+
+            return jsonify({
+                'giftee_name': result['giftee_name'],
+                'message': result['message'],
+                'is_complete': is_complete,
+                'success': True
+            })
+        else:
+            return jsonify({
+                'error': result['error'],
+                'success': False
+            }), 400
+
+    except Exception as e:
+        logger.error(f"Error performing draw: {e}")
+        return jsonify({'error': 'Failed to perform draw', 'success': False}), 500
+
+@app.route('/api/simple-draw', methods=['POST'])
+def simple_draw():
+    """Simple draw utility (FR-6)"""
     try:
         data = request.get_json()
-        if not data:
-            return jsonify({'error': 'No data provided', 'success': False}), 400
 
-        # Check if task exists
-        if get_task(task_id) is None:
-            return jsonify({'error': 'Task not found', 'success': False}), 404
+        if not data or 'names' not in data:
+            return jsonify({'error': 'Names list is required', 'success': False}), 400
 
-        title = data.get('title')
-        description = data.get('description')
-        completed = data.get('completed')
+        names = data['names']
+        if not isinstance(names, list) or len(names) < 2:
+            return jsonify({'error': 'At least 2 names required', 'success': False}), 400
 
-        update_task(task_id, title=title, description=description, completed=completed)
-        task = get_task(task_id)
+        # Validate names format
+        name_dicts = []
+        for i, name_item in enumerate(names):
+            if isinstance(name_item, str):
+                name_dicts.append({'id': i, 'name': name_item})
+            elif isinstance(name_item, dict) and 'name' in name_item:
+                name_dicts.append({'id': name_item.get('id', i), 'name': name_item['name']})
+            else:
+                return jsonify({'error': f'Invalid name format at index {i}', 'success': False}), 400
 
-        return jsonify({'task': task, 'success': True})
+        exclude_name = data.get('exclude_name')
+        remove_drawn = data.get('remove_drawn', True)
+
+        result = draw_name(name_dicts, exclude_name=exclude_name, remove_drawn=remove_drawn)
+
+        if result['success']:
+            return jsonify({
+                'drawn_name': result['drawn_name'],
+                'remaining_names': [n['name'] for n in result['remaining_names']],
+                'success': True
+            })
+        else:
+            return jsonify({
+                'error': result['error'],
+                'success': False
+            }), 400
+
     except Exception as e:
-        return jsonify({'error': str(e), 'success': False}), 500
+        logger.error(f"Error in simple draw: {e}")
+        return jsonify({'error': 'Failed to perform simple draw', 'success': False}), 500
 
-@app.route('/api/tasks/<int:task_id>', methods=['DELETE'])
-def delete_single_task(task_id):
+@app.route('/api/logout', methods=['POST'])
+def logout():
+    """Logout and clear session (FR-9)"""
     try:
-        # Check if task exists
-        if get_task(task_id) is None:
-            return jsonify({'error': 'Task not found', 'success': False}), 404
-
-        delete_task(task_id)
-        return jsonify({'success': True})
+        clear_current_user()
+        return jsonify({
+            'message': 'Logged out successfully',
+            'success': True
+        })
     except Exception as e:
-        return jsonify({'error': str(e), 'success': False}), 500
+        logger.error(f"Error during logout: {e}")
+        return jsonify({'error': 'Failed to logout', 'success': False}), 500
 
 # Health check endpoint for production monitoring
 @app.route('/health')

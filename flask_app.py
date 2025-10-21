@@ -1,14 +1,50 @@
-from flask import Flask, request, jsonify, render_template_string
+from flask import Flask, request, jsonify, render_template_string, make_response
 from flask_cors import CORS
 from database import init_db, get_all_tasks, get_task, create_task, update_task, delete_task
 import os
 import glob
+import logging
+from datetime import datetime
 
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# Create Flask app with configuration
 app = Flask(__name__)
-CORS(app)  # Enable CORS for all routes
+
+# Environment-based configuration
+FLASK_ENV = os.environ.get('FLASK_ENV', 'development')
+DEBUG = FLASK_ENV == 'development'
+
+# CORS configuration - more restrictive for production
+if DEBUG:
+    CORS(app, origins=['http://localhost:5173', 'http://127.0.0.1:5173'])
+else:
+    # In production, allow from same domain
+    CORS(app, origins=['*'], supports_credentials=True)
+
+# Security headers
+@app.after_request
+def add_security_headers(response):
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['X-Frame-Options'] = 'SAMEORIGIN'
+    response.headers['X-XSS-Protection'] = '1; mode=block'
+
+    # Cache static assets for a year
+    if request.path.startswith('/static/assets/'):
+        response.headers['Cache-Control'] = 'public, max-age=31536000'
+
+    return response
 
 # Initialize database on startup
-init_db()
+try:
+    init_db()
+    logger.info("Database initialized successfully")
+except Exception as e:
+    logger.error(f"Failed to initialize database: {e}")
+    if not DEBUG:
+        raise  # Fail hard in production
 
 @app.route('/')
 def index():
@@ -109,5 +145,30 @@ def delete_single_task(task_id):
     except Exception as e:
         return jsonify({'error': str(e), 'success': False}), 500
 
+# Health check endpoint for production monitoring
+@app.route('/health')
+def health_check():
+    try:
+        # Test database connection
+        conn = get_db_connection()
+        conn.execute('SELECT 1').fetchone()
+        conn.close()
+        return jsonify({'status': 'healthy', 'timestamp': datetime.utcnow().isoformat()})
+    except Exception as e:
+        logger.error(f"Health check failed: {e}")
+        return jsonify({'status': 'unhealthy', 'error': str(e)}), 500
+
+# Error handlers for production
+@app.errorhandler(500)
+def internal_error(error):
+    logger.error(f"Internal server error: {error}")
+    if DEBUG:
+        return jsonify({'error': str(error), 'success': False}), 500
+    return jsonify({'error': 'Internal server error', 'success': False}), 500
+
+@app.errorhandler(404)
+def not_found_error(error):
+    return jsonify({'error': 'Resource not found', 'success': False}), 404
+
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    app.run(debug=DEBUG, host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))

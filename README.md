@@ -145,6 +145,122 @@ The Flask backend provides the following REST API endpoints:
 }
 ```
 
+## Deployment to PythonAnywhere
+
+This application is configured for deployment on PythonAnywhere. Follow these steps:
+
+### Prerequisites
+- PythonAnywhere account with "Hacker" plan or higher (required for custom domains/web apps)
+- This project uploaded to PythonAnywhere
+
+### Step 1: Upload Files to PythonAnywhere
+
+1. **Upload the entire project** to your PythonAnywhere account:
+   - Use SCP, SFTP, or the PythonAnywhere file manager
+   - Upload all files including the `static/` directory with built Vue.js files
+
+2. **Ensure the static files are present**:
+   ```
+   yourusername.pythonanywhere.com/
+   ├── flask_app.wsgi
+   ├── flask_app.py
+   ├── database.py
+   ├── requirements.txt
+   ├── static/
+   │   ├── index.html
+   │   └── assets/
+   │       ├── main-*.js
+   │       └── index-*.css
+   └── (other files...)
+   ```
+
+### Step 2: Create Virtual Environment
+
+Create a virtual environment on PythonAnywhere:
+
+```bash
+mkvirtualenv --python=/usr/bin/python3.10 mysite
+workon mysite
+pip install -r requirements.txt
+```
+
+### Step 3: Configure Web App
+
+1. Go to **Web** tab in PythonAnywhere dashboard
+2. Click **Add a new web app**
+3. Choose **Manual configuration** (or **Flask** if available)
+4. Set **Python version** to 3.10
+5. Enter your virtual environment path: `/home/yourusername/.virtualenvs/mysite`
+
+### Step 4: Configure WSGI
+
+In the **WSGI configuration file** field, enter:
+
+```
+/var/www/yourusername_pythonanywhere_com_wsgi.py
+```
+
+Update the WSGI file content to:
+
+```python
+import sys
+import os
+
+# Add project directory to path
+project_dir = '/home/yourusername/mysite'
+if project_dir not in sys.path:
+    sys.path.insert(0, project_dir)
+
+# Set environment for production
+os.environ['FLASK_ENV'] = 'production'
+
+# Import Flask application
+from flask_app import app as application
+```
+
+### Step 5: Static Files Configuration
+
+In the Web app configuration:
+
+- **Static URL**: `/static/`
+- **Static directory path**: `/home/yourusername/mysite/static`
+
+### Step 6: Reload Web App
+
+Click **Reload** in the PythonAnywhere Web tab to apply changes.
+
+### Step 7: Test Deployment
+
+1. **Check health endpoint**: `https://yourusername.pythonanywhere.com/health`
+2. **Visit your app**: `https://yourusername.pythonanywhere.com`
+3. **Check logs** using PythonAnywhere's "Server error log" if issues occur
+
+### Troubleshooting Common Issues
+
+#### Blank Page Issues:
+1. **Static files not served**: Ensure `/static/` URL points to `/home/yourusername/mysite/static`
+2. **Build files missing**: Re-run `npm run build` in `frontend/` and re-upload
+3. **Path issues**: Check WSGI file paths are absolute
+
+#### Database Issues:
+1. **Permission denied**: SQLite creates files in project directory (should work)
+2. **Database not initialized**: Check `/health` endpoint for database errors
+
+#### Static File Serving:
+1. **Assets not loading**: Ensure static URL mapping is correct
+2. **Cache issues**: Hard refresh browser (Ctrl+F5) or clear browser cache
+
+### Production Optimizations
+
+Your app is now production-ready with:
+
+- ✅ **Environment-based configuration**
+- ✅ **Security headers** (HSTS, XSS Protection, Content-Type-Options)
+- ✅ **Caching** for static assets (1 year)
+- ✅ **Logging** for monitoring
+- ✅ **Error handling** for graceful failures
+- ✅ **Health check endpoint** (`/health`)
+
 ## Development
 
 ### Adding New Features

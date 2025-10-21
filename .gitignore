@@ -44,7 +44,6 @@ lerna-debug.log*
 
 # Vue.js build output
 dist/
-static/
 
 # IDE
 .vscode/

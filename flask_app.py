@@ -24,22 +24,14 @@ app.secret_key = os.environ.get('SECRET_KEY', 'gift-exchange-dev-secret-key-chan
 FLASK_ENV = os.environ.get('FLASK_ENV', 'development')
 DEBUG = FLASK_ENV == 'development'
 
-# CORS configuration - enable cross-origin requests from frontend
-# In CSR architecture, frontend runs separately from backend
+# CORS configuration - single server approach
+# Frontend and backend served from same domain, so relaxed CORS
 if DEBUG:
-    # Development: Allow frontend dev server
-    CORS(app, origins=['http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:4173'], supports_credentials=True)
+    # Development: Allow same-origin (Flask + Vue on same domain)
+    CORS(app, origins=['http://localhost:5000'], supports_credentials=True)
 else:
-    # Production: Allow frontend deployment domains
-    # Update these origins based on your frontend deployment URLs
-    frontend_origins = [
-        'http://localhost:4173',  # Vite preview
-        'http://localhost:3000',  # Alternative frontend port
-        # Add your production frontend URLs here
-        # 'https://yourdomain.com',
-        # 'https://www.yourdomain.com'
-    ]
-    CORS(app, origins=frontend_origins, supports_credentials=True)
+    # Production: Allow same-origin and common frontend patterns
+    CORS(app, supports_credentials=True)
 
 # Security headers
 @app.after_request
@@ -81,7 +73,38 @@ def clear_current_user():
     """Clear current user session"""
     session.pop('user', None)
 
+# Frontend Routes - Single Server Approach
+@app.route('/', methods=['GET'])
+def serve_vue_app():
+    """Serve the Vue.js Single Page Application"""
+    try:
+        # Try to serve the built Vue app from static directory
+        static_index = os.path.join(app.static_folder, 'index.html')
+        if os.path.exists(static_index):
+            with open(static_index, 'r') as f:
+                html_content = f.read()
+            return make_response(html_content, 200)
+        else:
+            # Fallback for development - API-only response
+            return jsonify({
+                'message': 'Frontend not built. Run: cd frontend && npm run build',
+                'build_command': 'cd frontend && npm run build',
+                'access_api': 'Visit /api/* endpoints for API access'
+            }), 404
+    except Exception as e:
+        logger.error(f"Error serving Vue app: {e}")
+        return jsonify({'error': 'Failed to load application', 'details': str(e)}), 500
 
+@app.route('/<path:path>', methods=['GET'])
+def serve_vue_app_routes(path):
+    """Catch-all route for Vue Router - serves the Vue app for all non-API routes"""
+    # Don't intercept API routes
+    if path.startswith('api/') or path == 'health':
+        # This shouldn't happen if API routes are defined first, but safety check
+        return jsonify({'error': 'Not found'}), 404
+
+    # Serve the Vue app for any other route (SPA routing)
+    return serve_vue_app()
 
 # API Routes - Gift Exchange
 

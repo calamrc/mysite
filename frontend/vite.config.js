@@ -30,8 +30,8 @@ export default defineConfig({
     }
   },
   build: {
-    // Build to dist folder for standalone deployment
-    outDir: 'dist',
+    // Build to static folder for Flask serving (single server approach)
+    outDir: '../static',
     emptyOutDir: true,
     rollupOptions: {
       input: {

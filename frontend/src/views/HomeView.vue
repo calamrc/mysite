@@ -170,15 +170,14 @@ export default {
       try {
         // Prepare request data based on mode
         const requestData = {
+          username: this.modalUsername,
           pin: this.modalPin
         }
 
-        // Add username for joining existing events, but not for creating new ones
+        // Add event_code only for joining existing events
         if (this.modalMode === 'join') {
-          requestData.username = this.modalUsername
           requestData.event_code = this.modalEventCode
         }
-        // For creating events, don't send username or event_code - let backend generate
 
         const response = await axios.post('/api/events/join-or-create', requestData)
 

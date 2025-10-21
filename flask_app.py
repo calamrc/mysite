@@ -115,6 +115,9 @@ def create_new_event():
 
         event_id, event_code = create_event(pin)
 
+        # Automatically authenticate the creator as organizer
+        set_current_user(event_code, 'organizer')
+
         return jsonify({
             'event_code': event_code,
             'message': 'Event created successfully',
@@ -243,6 +246,14 @@ def get_event_status(event_code):
         joined_count = len([p for p in participants if not p['has_drawn']])
         drawn_count = len([p for p in participants if p['has_drawn']])
 
+        # Check if organizer is also a participant
+        is_participant = False
+        if user_role == 'organizer':
+            participant_id = current_user.get('participant_id')
+            participant_name = current_user.get('participant_name')
+            if participant_id or (participant_name and any(p['name'] == participant_name for p in participants)):
+                is_participant = True
+
         return jsonify({
             'event_code': event_code,
             'phase': event['phase'],
@@ -251,6 +262,7 @@ def get_event_status(event_code):
             'drawn_count': drawn_count,
             'participants': participant_list,
             'user_role': user_role,
+            'is_participant': is_participant,
             'success': True
         })
 
@@ -285,9 +297,21 @@ def register_participant(event_code):
         if participant_id is None:
             return jsonify({'error': 'Name already taken', 'success': False}), 409
 
-        # Update session if this is the current user
+        # Update session for all cases - handle both regular participants and organizers joining as participants
         current_user = get_current_user()
-        if current_user.get('event_code') == event_code and current_user.get('role') == 'participant':
+        user_role = current_user.get('role', 'participant')
+
+        # For organizers who join as participants, keep their organizer role but track participant ID
+        if current_user.get('event_code') == event_code and user_role == 'organizer':
+            # Organizer joining as participant - update session with participant info
+            # but maintain organizer role
+            session['user'].update({
+                'participant_id': participant_id,
+                'participant_name': name
+            })
+            session.permanent = True
+        elif user_role == 'participant':
+            # Regular participant registration
             set_current_user(event_code, 'participant', user_id=participant_id, name=name)
 
         return jsonify({

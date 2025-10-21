@@ -29,13 +29,16 @@ def init_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             username TEXT NOT NULL,
             pin_hash TEXT NOT NULL,
+            display_name TEXT NOT NULL,
+            avatar_color TEXT NOT NULL,
             event_id INTEGER NOT NULL,
             participant_id INTEGER UNIQUE,
             role TEXT NOT NULL CHECK (role IN ('organizer', 'participant')),
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (event_id) REFERENCES events (id) ON DELETE CASCADE,
             FOREIGN KEY (participant_id) REFERENCES participants (id) ON DELETE CASCADE,
-            UNIQUE(username, event_id COLLATE NOCASE)
+            UNIQUE(username, event_id COLLATE NOCASE),
+            UNIQUE(display_name, event_id COLLATE NOCASE)
         )
     ''')
 
@@ -387,6 +390,89 @@ def _would_create_invalid_assignment(conn, event_id, drawer_id, giftee_id):
     # e.g., prevent cycles, enforce rules, etc.
     return False
 
+# ===== USER PERSONALIZATION FUNCTIONS =====
+
+# Pre-defined lists for generating random names and colors
+DISPLAY_NAME_WORDS = [
+    'Phoenix', 'Blizzard', 'Thunder', 'Whisper', 'Eclipse', 'Mystic', 'Tempest',
+    'Sapphire', 'Crimson', 'Aurora', 'Storm', 'Jester', 'Nova', 'Specter', 'Radiant',
+    'Vortex', 'Harmony', 'Falcon', 'Trinity', 'Orion', 'Lunar', 'Zenith', 'Cascade',
+    'Brave', 'Courage', 'Justice', 'Liberty', 'Spirit', 'Wisdom', 'Passion', 'Dream',
+    'Cosmic', 'Galactic', 'Eternal', 'Infinite', 'Majestic', 'Noble', 'Royal', 'Flame',
+    'Frost', 'Shadow', 'Light', 'Star', 'Moon', 'Sun', 'Wind', 'Earth', 'Fire', 'Water'
+]
+
+AVATAR_COLORS = [
+    '#ff6b6b', '#feca57', '#48dbfb', '#0abde3', '#ff9ff3', '#f368e0', '#00d2d3', '#54a0ff',
+    '#5f27cd', '#00d2d3', '#ff9f43', '#ee5a24', '#0abde3', '#2e86de', '#341f97', '#5352ed',
+    '#ff6b9d', '#e056fd', '#3483fa', '#26de81', '#78e08f', '#fad390', '#6c5ce7', '#a29bfe',
+    '#fd79a8', '#fdcb6e', '#e17055', '#d63031', '#00b894', '#00cec9', '#a29bfe', '#6c5ce7'
+]
+
+def generate_display_name(event_id):
+    """Generate a unique display name for an event"""
+    conn = get_db_connection()
+    taken_names = set()
+
+    # Get all existing display names for this event
+    users = conn.execute(
+        'SELECT display_name FROM users WHERE event_id = ?',
+        (event_id,)
+    ).fetchall()
+    conn.close()
+
+    taken_names = {user['display_name'] for user in users}
+
+    # Try to find an unused name
+    available_names = [name for name in DISPLAY_NAME_WORDS if name not in taken_names]
+
+    if not available_names:
+        # If all names are taken, append a number (fallback)
+        base_names = [name for name in DISPLAY_NAME_WORDS if name not in taken_names]
+        for name in base_names:
+            counter = 1
+            while True:
+                candidate = f"{name}{counter}"
+                if candidate not in taken_names:
+                    return candidate
+                counter += 1
+        # Ultimate fallback
+        return f"User{len(taken_names) + 1}"
+
+    return random.choice(available_names)
+
+def generate_avatar_color():
+    """Generate a random avatar color"""
+    return random.choice(AVATAR_COLORS)
+
+def update_user_profile(user_id, display_name=None, avatar_color=None):
+    """Update user display name and/or avatar color"""
+    conn = get_db_connection()
+    try:
+        # Build update query dynamically
+        updates = []
+        params = []
+
+        if display_name is not None:
+            updates.append('display_name = ?')
+            params.append(display_name)
+
+        if avatar_color is not None:
+            updates.append('avatar_color = ?')
+            params.append(avatar_color)
+
+        if not updates:
+            return False  # Nothing to update
+
+        params.append(user_id)
+        query = f'UPDATE users SET {", ".join(updates)} WHERE id = ?'
+
+        conn.execute(query, params)
+        conn.commit()
+        return True
+    finally:
+        conn.close()
+
 # ===== USER MANAGEMENT FUNCTIONS =====
 
 def get_user_by_credentials(username, pin, event_id):
@@ -401,19 +487,25 @@ def get_user_by_credentials(username, pin, event_id):
     conn.close()
     return dict(user) if user else None
 
-def create_user(username, pin, event_id, role, participant_id=None):
-    """Create a new user account"""
+def create_user(username, pin, event_id, role, participant_id=None, display_name=None, avatar_color=None):
+    """Create a new user account with optional personalized name/avatar"""
+    if display_name is None:
+        display_name = generate_display_name(event_id)
+
+    if avatar_color is None:
+        avatar_color = generate_avatar_color()
+
     conn = get_db_connection()
     try:
         cursor = conn.execute('''
-            INSERT INTO users (username, pin_hash, event_id, role, participant_id)
-            VALUES (?, ?, ?, ?, ?)
-        ''', (username, hash_pin(pin), event_id, role, participant_id))
+            INSERT INTO users (username, pin_hash, display_name, avatar_color, event_id, role, participant_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        ''', (username, hash_pin(pin), display_name, avatar_color, event_id, role, participant_id))
         user_id = cursor.lastrowid
         conn.commit()
-        return user_id
+        return user_id, display_name, avatar_color
     except sqlite3.IntegrityError:
-        return None  # Username already exists for this event
+        return None, None, None  # Username or display_name already exists for this event
     finally:
         conn.close()
 

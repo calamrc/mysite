@@ -31,20 +31,27 @@
           Choose a PIN to create your new gift exchange event.
         </p>
 
-        <form @submit.prevent="submitModal" class="auth-form">
-          <div class="form-group">
-            <label for="username">Username</label>
-            <input
-              id="username"
-              v-model="modalUsername"
-              type="text"
-              placeholder="Enter your username"
-              maxlength="50"
-              class="form-control"
-              required
-            />
+        <div class="profile-preview">
+          <div class="preview-avatar" :style="{ backgroundColor: generatedProfile.avatar_color }">
+            <span class="avatar-initial">{{ generatedProfile.display_name.charAt(0).toUpperCase() }}</span>
           </div>
+          <span class="preview-name">{{ generatedProfile.display_name }}</span>
+        </div>
 
+        <p class="generated-notice">Don't like these credentials? Generate new ones!</p>
+
+        <div class="generation-actions">
+          <button type="button" @click="regenerateCredentials" class="btn btn-secondary">
+            🔄 Regenerate New Credentials
+          </button>
+          <button type="button" @click="openEditModal" class="btn btn-outline">
+            ✏️ Customize Manually
+          </button>
+        </div>
+
+        <hr class="section-divider">
+
+        <form @submit.prevent="submitModal" class="auth-form">
           <div class="form-group">
             <label for="pin">PIN</label>
             <input
@@ -105,7 +112,29 @@ export default {
       modalPin: '',
       modalEventCode: '',
       processing: false,
-      modalError: ''
+      modalError: '',
+      // Profile generation
+      avatarColors: [
+        '#ff6b6b', '#feca57', '#48dbfb', '#0abde3', '#ff9ff3', '#f368e0',
+        '#00d2d3', '#54a0ff', '#5f27cd', '#00d2d3', '#ff9f43', '#ee5a24',
+        '#0abde3', '#2e86de', '#341f97', '#5352ed', '#ff6b9d', '#e056fd',
+        '#3483fa', '#26de81', '#78e08f', '#fad390', '#6c5ce7', '#a29bfe',
+        '#fd79a8', '#fdcb6e', '#e17055', '#d63031', '#00b894', '#00cec9',
+        '#a29bfe', '#6c5ce7'
+      ],
+      showEditModal: false
+    }
+  },
+  computed: {
+    generatedProfile() {
+      // Create computed property for generated profile
+      const randomColorIndex = Math.floor(Math.random() * this.avatarColors.length)
+      const randomNameIndex = Math.floor(Math.random() * 50) // Approximate word count
+
+      return {
+        display_name: `Temp${randomNameIndex}`, // Placeholder until actual generation
+        avatar_color: this.avatarColors[randomColorIndex]
+      }
     }
   },
   async mounted() {
@@ -129,10 +158,10 @@ export default {
   methods: {
     openModal(mode) {
       this.modalMode = mode
-      this.modalUsername = ''
       this.modalPin = ''
       this.modalEventCode = ''
       this.modalError = ''
+      this.regenerateCredentials() // Generate initial credentials
       this.showModal = true
     },
 
@@ -144,6 +173,20 @@ export default {
       this.modalError = ''
     },
 
+    regenerateCredentials() {
+      // Trigger reactivity by updating the computed property
+      const randomColorIndex = Math.floor(Math.random() * this.avatarColors.length)
+      const randomNameIndex = Math.floor(Math.random() * 50)
+
+      this.generatedDisplayName = `Temp${randomNameIndex}`
+      this.generatedAvatarColor = this.avatarColors[randomColorIndex]
+    },
+
+    openEditModal() {
+      // For now, just regenerate - full editing would require more complex modal
+      this.modalError = 'Advanced customization coming soon! For now, use "Regenerate"'
+    },
+
     async submitModal() {
       if (this.processing) return
 
@@ -151,13 +194,23 @@ export default {
       this.modalError = ''
 
       try {
+        // Use generated credentials or let backend generate
         const response = await axios.post('/api/events/join-or-create', {
-          username: this.modalUsername,
           pin: this.modalPin,
           event_code: this.modalEventCode || undefined
         })
 
         if (response.data.success) {
+          // Store generated credentials in localStorage for navbar
+          const authData = {
+            display_name: response.data.display_name,
+            avatar_color: response.data.avatar_color,
+            role: response.data.role,
+            event_code: response.data.event_code,
+            user_id: response.data.user_id || null
+          }
+          localStorage.setItem('giftExchangeAuth', JSON.stringify(authData))
+
           // Route based on role
           const route = response.data.role === 'organizer' ? 'organizer' : 'participant'
           this.$router.push(`/${route}/${response.data.event_code}`)
@@ -284,6 +337,62 @@ export default {
 
 .btn {
   flex: 1;
+}
+
+.profile-preview {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+  justify-content: center;
+  margin-bottom: var(--spacing-6);
+  padding: var(--spacing-4);
+  background: var(--color-gray-50);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-border);
+}
+
+.preview-avatar {
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: var(--font-weight-bold);
+  font-size: var(--font-size-xl);
+  color: var(--color-white);
+  border: 2px solid var(--color-white);
+  box-shadow: var(--shadow-sm);
+}
+
+.avatar-initial {
+  line-height: 1;
+}
+
+.preview-name {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+}
+
+.generated-notice {
+  text-align: center;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  margin-bottom: var(--spacing-4);
+}
+
+.generation-actions {
+  display: flex;
+  gap: var(--spacing-3);
+  justify-content: center;
+  margin-bottom: var(--spacing-6);
+}
+
+.section-divider {
+  border: none;
+  border-top: 1px solid var(--color-border);
+  margin: var(--spacing-6) 0;
 }
 
 @media (max-width: 768px) {

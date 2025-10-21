@@ -5,7 +5,8 @@ from database import (
     get_event_participants, update_event_phase, perform_draw,
     draw_name, get_remaining_participants, is_event_complete,
     verify_pin, get_participant, get_db_connection,
-    get_user_by_credentials, create_user, get_user
+    get_user_by_credentials, create_user, get_user, update_user_profile,
+    generate_display_name, generate_avatar_color
 )
 import os
 import glob
@@ -160,11 +161,13 @@ def join_or_create_event():
             # CREATE NEW EVENT
             event_id, event_code = create_event(pin)
 
-            # Create user account
-            user_id = create_user(username, pin, event_id, 'organizer')
-            if user_id is None:
-                # Username already exists (shouldn't happen for new event, but just in case)
+            # Create user account with auto-generated display name and avatar
+            user_result = create_user(username, pin, event_id, 'organizer')
+            if user_result[0] is None:
+                # Username or display_name already exists
                 return jsonify({'error': 'Username already taken', 'success': False}), 409
+
+            user_id, display_name, avatar_color = user_result
 
             # Create participant record for organizer
             participant_id = add_participant(event_id, username)
@@ -237,10 +240,12 @@ def join_or_create_event():
         if participant_id is None:
             return jsonify({'error': 'Name already taken', 'success': False}), 409
 
-        # Create user account
-        user_id = create_user(username, pin, event['id'], role, participant_id)
-        if user_id is None:
+        # Create user account with auto-generated display name and avatar
+        user_result = create_user(username, pin, event['id'], role, participant_id)
+        if user_result[0] is None:
             return jsonify({'error': 'Username already taken for this event', 'success': False}), 409
+
+        user_id, display_name, avatar_color = user_result
 
         # Set session
         set_current_user(event_code, role, user_id, username)
@@ -250,6 +255,8 @@ def join_or_create_event():
             'event_code': event_code,
             'role': role,
             'phase': event['phase'],
+            'display_name': display_name,
+            'avatar_color': avatar_color,
             'message': f'Successfully joined {message_part}!',
             'success': True
         })
@@ -532,6 +539,61 @@ def simple_draw():
     except Exception as e:
         logger.error(f"Error in simple draw: {e}")
         return jsonify({'error': 'Failed to perform simple draw', 'success': False}), 500
+
+@app.route('/api/user/profile', methods=['PUT'])
+def update_user_profile_endpoint():
+    """Update user display name and/or avatar color"""
+    try:
+        current_user = get_current_user()
+        if not current_user or not current_user.get('user_id'):
+            return jsonify({'error': 'Not authenticated', 'success': False}), 401
+
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No update data provided', 'success': False}), 400
+
+        display_name = data.get('display_name', '').strip()
+        avatar_color = data.get('avatar_color', '').strip()
+
+        # Validate display_name if provided
+        if display_name and (not display_name or len(display_name) > 50):
+            return jsonify({'error': 'Display name must be 1-50 characters', 'success': False}), 400
+
+        # If updating display_name, check for conflicts in this event
+        if display_name:
+            event_code = current_user.get('event_code')
+            if event_code:
+                event = get_event_by_code(event_code)
+                if event:
+                    existing_users = get_users_for_event(event['id'])
+                    conflicting_user = next(
+                        (u for u in existing_users
+                         if u['display_name'].lower() == display_name.lower() and u['id'] != current_user['user_id']),
+                        None
+                    )
+                    if conflicting_user:
+                        return jsonify({'error': 'Display name already taken in this event', 'success': False}), 409
+
+        # Update the user profile
+        update_result = update_user_profile(
+            current_user['user_id'],
+            display_name if display_name else None,
+            avatar_color if avatar_color else None
+        )
+
+        if update_result:
+            return jsonify({
+                'message': 'Profile updated successfully',
+                'display_name': display_name or None,
+                'avatar_color': avatar_color or None,
+                'success': True
+            })
+        else:
+            return jsonify({'error': 'No changes made', 'success': False}), 400
+
+    except Exception as e:
+        logger.error(f"Error updating user profile: {e}")
+        return jsonify({'error': 'Failed to update profile', 'success': False}), 500
 
 @app.route('/api/logout', methods=['POST'])
 def logout():

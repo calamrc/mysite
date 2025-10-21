@@ -49,12 +49,11 @@
 
         <form @submit.prevent="submitModal" class="auth-form">
           <div class="form-group">
-            <label for="pin">PIN</label>
             <input
               id="pin"
               v-model="modalPin"
               type="password"
-              placeholder="Enter PIN (4+ characters)"
+              placeholder="PIN (4+ characters)"
               minlength="4"
               class="form-control"
               required
@@ -169,12 +168,19 @@ export default {
       this.modalError = ''
 
       try {
-        // Use the username from the input field (generated or edited by user)
-        const response = await axios.post('/api/events/join-or-create', {
-          username: this.modalUsername,
-          pin: this.modalPin,
-          event_code: this.modalEventCode || undefined
-        })
+        // Prepare request data based on mode
+        const requestData = {
+          pin: this.modalPin
+        }
+
+        // Add username for joining existing events, but not for creating new ones
+        if (this.modalMode === 'join') {
+          requestData.username = this.modalUsername
+          requestData.event_code = this.modalEventCode
+        }
+        // For creating events, don't send username or event_code - let backend generate
+
+        const response = await axios.post('/api/events/join-or-create', requestData)
 
         if (response.data.success) {
           // Store username in localStorage for navbar

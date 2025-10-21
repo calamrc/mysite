@@ -142,18 +142,15 @@ def join_or_create_event():
     try:
         data = request.get_json()
 
-        required_fields = ['username', 'pin']
-        if not all(field in data for field in required_fields):
-            return jsonify({'error': 'Username and PIN are required', 'success': False}), 400
-
-        username = data['username'].strip()
-        pin = data['pin']
-
-        if not username:
-            return jsonify({'error': 'Username cannot be empty', 'success': False}), 400
+        # Username is required for joining, but optional for creating
+        pin = data.get('pin')
+        if not pin:
+            return jsonify({'error': 'PIN is required', 'success': False}), 400
 
         if not isinstance(pin, str) or len(pin) < 4:
             return jsonify({'error': 'PIN must be at least 4 characters', 'success': False}), 400
+
+
 
         event_code = data.get('event_code', '').strip().upper()
 

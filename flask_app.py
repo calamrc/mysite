@@ -187,6 +187,7 @@ def join_or_create_event():
                 'action': 'created',
                 'event_code': event_code,
                 'role': 'organizer',
+                'display_name': display_name,
                 'message': f'Event created! Welcome {username}',
                 'success': True
             }), 201

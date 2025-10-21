@@ -24,32 +24,28 @@
     <div v-if="showModal" class="auth-modal">
       <div class="modal-content">
         <h2>{{ modalMode === 'create' ? 'Create New Event' : 'Join Event' }}</h2>
-        <p v-if="modalMode === 'join'">
-          Enter the event code and PIN to join the gift exchange.
-        </p>
-        <p v-else>
-          Choose a PIN to create your new gift exchange event.
-        </p>
 
-        <div class="profile-preview">
-          <div class="preview-avatar" :style="{ backgroundColor: generatedProfile.avatar_color }">
-            <span class="avatar-initial">{{ generatedProfile.display_name.charAt(0).toUpperCase() }}</span>
+        <div class="username-input-group">
+          <div class="input-wrapper">
+            <input
+              id="username"
+              v-model="modalUsername"
+              type="text"
+              placeholder="Enter your username"
+              maxlength="50"
+              class="form-control username-input"
+              required
+            />
+            <button
+              type="button"
+              @click="regenerateUsername"
+              class="refresh-btn"
+              aria-label="Generate random username"
+            >
+              <span class="refresh-icon">🔄</span>
+            </button>
           </div>
-          <span class="preview-name">{{ generatedProfile.display_name }}</span>
         </div>
-
-        <p class="generated-notice">Don't like these credentials? Generate new ones!</p>
-
-        <div class="generation-actions">
-          <button type="button" @click="regenerateCredentials" class="btn btn-secondary">
-            🔄 Regenerate New Credentials
-          </button>
-          <button type="button" @click="openEditModal" class="btn btn-outline">
-            ✏️ Customize Manually
-          </button>
-        </div>
-
-        <hr class="section-divider">
 
         <form @submit.prevent="submitModal" class="auth-form">
           <div class="form-group">
@@ -113,28 +109,15 @@ export default {
       modalEventCode: '',
       processing: false,
       modalError: '',
-      // Profile generation
-      avatarColors: [
-        '#ff6b6b', '#feca57', '#48dbfb', '#0abde3', '#ff9ff3', '#f368e0',
-        '#00d2d3', '#54a0ff', '#5f27cd', '#00d2d3', '#ff9f43', '#ee5a24',
-        '#0abde3', '#2e86de', '#341f97', '#5352ed', '#ff6b9d', '#e056fd',
-        '#3483fa', '#26de81', '#78e08f', '#fad390', '#6c5ce7', '#a29bfe',
-        '#fd79a8', '#fdcb6e', '#e17055', '#d63031', '#00b894', '#00cec9',
-        '#a29bfe', '#6c5ce7'
-      ],
-      showEditModal: false
-    }
-  },
-  computed: {
-    generatedProfile() {
-      // Create computed property for generated profile
-      const randomColorIndex = Math.floor(Math.random() * this.avatarColors.length)
-      const randomNameIndex = Math.floor(Math.random() * 50) // Approximate word count
-
-      return {
-        display_name: `Temp${randomNameIndex}`, // Placeholder until actual generation
-        avatar_color: this.avatarColors[randomColorIndex]
-      }
+      // Username words for random generation
+      usernameWords: [
+        'Phoenix', 'Blizzard', 'Thunder', 'Whisper', 'Eclipse', 'Mystic', 'Tempest',
+        'Sapphire', 'Crimson', 'Aurora', 'Storm', 'Jester', 'Nova', 'Specter', 'Radiant',
+        'Vortex', 'Harmony', 'Falcon', 'Trinity', 'Orion', 'Lunar', 'Zenith', 'Cascade',
+        'Brave', 'Courage', 'Justice', 'Liberty', 'Spirit', 'Wisdom', 'Passion', 'Dream',
+        'Cosmic', 'Galactic', 'Eternal', 'Infinite', 'Majestic', 'Noble', 'Royal', 'Flame',
+        'Frost', 'Shadow', 'Light', 'Star', 'Moon', 'Sun', 'Wind', 'Earth', 'Fire', 'Water'
+      ]
     }
   },
   async mounted() {
@@ -161,7 +144,7 @@ export default {
       this.modalPin = ''
       this.modalEventCode = ''
       this.modalError = ''
-      this.regenerateCredentials() // Generate initial credentials
+      this.regenerateUsername() // Generate initial username
       this.showModal = true
     },
 
@@ -173,18 +156,10 @@ export default {
       this.modalError = ''
     },
 
-    regenerateCredentials() {
-      // Trigger reactivity by updating the computed property
-      const randomColorIndex = Math.floor(Math.random() * this.avatarColors.length)
-      const randomNameIndex = Math.floor(Math.random() * 50)
-
-      this.generatedDisplayName = `Temp${randomNameIndex}`
-      this.generatedAvatarColor = this.avatarColors[randomColorIndex]
-    },
-
-    openEditModal() {
-      // For now, just regenerate - full editing would require more complex modal
-      this.modalError = 'Advanced customization coming soon! For now, use "Regenerate"'
+    regenerateUsername() {
+      // Randomly select from the username words list
+      const randomWord = this.usernameWords[Math.floor(Math.random() * this.usernameWords.length)]
+      this.modalUsername = randomWord
     },
 
     async submitModal() {
@@ -194,17 +169,17 @@ export default {
       this.modalError = ''
 
       try {
-        // Use generated credentials or let backend generate
+        // Use the username from the input field (generated or edited by user)
         const response = await axios.post('/api/events/join-or-create', {
+          username: this.modalUsername,
           pin: this.modalPin,
           event_code: this.modalEventCode || undefined
         })
 
         if (response.data.success) {
-          // Store generated credentials in localStorage for navbar
+          // Store username in localStorage for navbar
           const authData = {
             display_name: response.data.display_name,
-            avatar_color: response.data.avatar_color,
             role: response.data.role,
             event_code: response.data.event_code,
             user_id: response.data.user_id || null
@@ -337,6 +312,52 @@ export default {
 
 .btn {
   flex: 1;
+}
+
+.username-input-group {
+  margin: var(--spacing-6) 0;
+}
+
+.input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+}
+
+.username-input {
+  flex: 1;
+  padding-right: var(--spacing-12); /* Make space for the button */
+}
+
+.refresh-btn {
+  position: absolute;
+  right: var(--spacing-2);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: var(--spacing-2);
+  border-radius: var(--radius-md);
+  transition: all var(--transition-fast);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+}
+
+.refresh-btn:hover {
+  background-color: var(--color-gray-200);
+  transform: rotate(45deg);
+}
+
+.refresh-btn:active {
+  transform: rotate(90deg) scale(0.95);
+}
+
+.refresh-icon {
+  font-size: var(--font-size-lg);
+  line-height: 1;
 }
 
 .profile-preview {

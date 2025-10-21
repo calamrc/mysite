@@ -128,64 +128,70 @@ def create_new_event():
         logger.error(f"Error creating event: {e}")
         return jsonify({'error': 'Failed to create event', 'success': False}), 500
 
-@app.route('/api/events/<event_code>/join', methods=['POST'])
-def join_event(event_code):
-    """Join an event as organizer or participant (FR-2)"""
+@app.route('/api/events/join-or-create', methods=['POST'])
+def join_or_create_event():
+    """Unified API for joining existing event or creating new event with PIN authentication"""
     try:
-        event_code = event_code.upper()
         data = request.get_json()
 
-        if not data or 'role' not in data:
-            return jsonify({'error': 'Role is required', 'success': False}), 400
+        if not data or 'pin' not in data:
+            return jsonify({'error': 'PIN is required', 'success': False}), 400
 
-        role = data['role']
-        if role not in ['organizer', 'participant']:
-            return jsonify({'error': 'Invalid role', 'success': False}), 400
+        pin = data['pin']
+        if not isinstance(pin, str) or len(pin) < 4:
+            return jsonify({'error': 'PIN must be at least 4 characters', 'success': False}), 400
 
-        # Get event
+        event_code = data.get('event_code', '').strip().upper()
+
+        # Determine if this is create or join based on event_code presence
+        if not event_code:
+            # CREATE NEW EVENT
+            event_id, event_code = create_event(pin)
+            # Automatically authenticate as organizer
+            set_current_user(event_code, 'organizer')
+            return jsonify({
+                'action': 'created',
+                'event_code': event_code,
+                'role': 'organizer',
+                'message': 'Event created successfully',
+                'success': True
+            }), 201
+
+        # JOIN EXISTING EVENT
         event = get_event_by_code(event_code)
         if not event:
             return jsonify({'error': 'Event not found', 'success': False}), 404
 
-        if role == 'organizer':
-            # Verify PIN
-            pin = data.get('pin', '')
-            if not verify_pin(pin, event['pin_hash']):
-                return jsonify({'error': 'Invalid PIN', 'success': False}), 401
+        # Verify PIN
+        if not verify_pin(pin, event['pin_hash']):
+            return jsonify({'error': 'Invalid PIN', 'success': False}), 401
 
-            # Set as organizer
+        # Smart role assignment based on participant count
+        participants = get_event_participants(event['id'])
+
+        if len(participants) == 0:
+            # First person with correct PIN becomes organizer
             set_current_user(event_code, 'organizer')
+            role = 'organizer'
+            message = 'Joined as event organizer'
+        else:
+            # Others with correct PIN become participants
+            set_current_user(event_code, 'participant')
+            role = 'participant'
+            message = 'Joined as participant'
 
-            return jsonify({
-                'message': 'Joined as organizer',
-                'event_code': event_code,
-                'phase': event['phase'],
-                'success': True
-            })
-
-        elif role == 'participant':
-            # For participants, name is optional here - they can register later
-            name = data.get('name', '').strip()
-            user_id = None
-
-            if name:
-                # Try to register immediately if name provided
-                user_id = add_participant(event['id'], name)
-                if user_id is None:
-                    return jsonify({'error': 'Name already taken', 'success': False}), 409
-
-            set_current_user(event_code, 'participant', user_id=user_id, name=name)
-
-            return jsonify({
-                'message': f'Joined as participant{f" ({name})" if name else ""}',
-                'event_code': event_code,
-                'phase': event['phase'],
-                'success': True
-            })
+        return jsonify({
+            'action': 'joined',
+            'event_code': event_code,
+            'role': role,
+            'phase': event['phase'],
+            'message': message,
+            'success': True
+        })
 
     except Exception as e:
-        logger.error(f"Error joining event: {e}")
-        return jsonify({'error': 'Failed to join event', 'success': False}), 500
+        logger.error(f"Error in join-or-create: {e}")
+        return jsonify({'error': 'Failed to process request', 'success': False}), 500
 
 @app.route('/api/events/<event_code>/status', methods=['GET'])
 def get_event_status(event_code):

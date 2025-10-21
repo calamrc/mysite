@@ -4,7 +4,8 @@ from database import (
     init_db, get_event_by_code, create_event, add_participant,
     get_event_participants, update_event_phase, perform_draw,
     draw_name, get_remaining_participants, is_event_complete,
-    verify_pin, get_participant, get_db_connection
+    verify_pin, get_participant, get_db_connection,
+    get_user_by_credentials, create_user, get_user
 )
 import os
 import glob
@@ -56,13 +57,13 @@ def get_current_user():
     """Get current user from session"""
     return session.get('user', {})
 
-def set_current_user(event_code, role, user_id=None, name=None):
-    """Set current user in session"""
+def set_current_user(event_code, role, user_id, participant_name=None):
+    """Set current user in session - now requires user_id for persistence"""
     session['user'] = {
         'event_code': event_code,
         'role': role,  # 'organizer' or 'participant'
-        'user_id': user_id,
-        'name': name
+        'user_id': user_id,  # Always required now
+        'participant_name': participant_name  # Display name
     }
     session.permanent = True
 
@@ -130,30 +131,54 @@ def create_new_event():
 
 @app.route('/api/events/join-or-create', methods=['POST'])
 def join_or_create_event():
-    """Unified API for joining existing event or creating new event with PIN authentication"""
+    """Unified API for joining existing event or creating new event with username + PIN authentication"""
     try:
         data = request.get_json()
 
-        if not data or 'pin' not in data:
-            return jsonify({'error': 'PIN is required', 'success': False}), 400
+        required_fields = ['username', 'pin']
+        if not all(field in data for field in required_fields):
+            return jsonify({'error': 'Username and PIN are required', 'success': False}), 400
 
+        username = data['username'].strip()
         pin = data['pin']
+
+        if not username:
+            return jsonify({'error': 'Username cannot be empty', 'success': False}), 400
+
         if not isinstance(pin, str) or len(pin) < 4:
             return jsonify({'error': 'PIN must be at least 4 characters', 'success': False}), 400
 
         event_code = data.get('event_code', '').strip().upper()
 
-        # Determine if this is create or join based on event_code presence
         if not event_code:
             # CREATE NEW EVENT
             event_id, event_code = create_event(pin)
-            # Automatically authenticate as organizer
-            set_current_user(event_code, 'organizer')
+
+            # Create user account
+            user_id = create_user(username, pin, event_id, 'organizer')
+            if user_id is None:
+                # Username already exists (shouldn't happen for new event, but just in case)
+                return jsonify({'error': 'Username already taken', 'success': False}), 409
+
+            # Create participant record for organizer
+            participant_id = add_participant(event_id, username)
+            if participant_id:
+                # Link participant to user account (organizer is always a participant)
+                conn = get_db_connection()
+                try:
+                    conn.execute('UPDATE users SET participant_id = ? WHERE id = ?', (participant_id, user_id))
+                    conn.commit()
+                finally:
+                    conn.close()
+
+            # Set session
+            set_current_user(event_code, 'organizer', user_id, username)
+
             return jsonify({
                 'action': 'created',
                 'event_code': event_code,
                 'role': 'organizer',
-                'message': 'Event created successfully',
+                'message': f'Event created! Welcome {username}',
                 'success': True
             }), 201
 
@@ -162,30 +187,64 @@ def join_or_create_event():
         if not event:
             return jsonify({'error': 'Event not found', 'success': False}), 404
 
-        # Verify PIN
-        if not verify_pin(pin, event['pin_hash']):
-            return jsonify({'error': 'Invalid PIN', 'success': False}), 401
+        # Check if username + PIN combo exists for this event
+        existing_user = get_user_by_credentials(username, pin, event['id'])
 
-        # Smart role assignment based on participant count
+        if existing_user:
+            # Existing user - authenticate them
+            user_id = existing_user['id']
+            role = existing_user['role']
+            participant_name = existing_user['participant_name']
+
+            # Set session
+            set_current_user(event_code, role, user_id, participant_name)
+
+            role_message = 'organizer' if role == 'organizer' else 'participant'
+            return jsonify({
+                'action': 'authenticated',
+                'event_code': event_code,
+                'role': role,
+                'phase': event['phase'],
+                'message': f'Welcome back {username}!',
+                'success': True
+            })
+
+        # Username + PIN combo not found - create new participant account
+        # First verify PIN is correct for the event
+        if not verify_pin(pin, event['pin_hash']):
+            return jsonify({'error': 'Invalid PIN for this event', 'success': False}), 401
+
+        # PIN correct, but user account doesn't exist - create new participant
         participants = get_event_participants(event['id'])
 
         if len(participants) == 0:
-            # First person with correct PIN becomes organizer
-            set_current_user(event_code, 'organizer')
+            # First participant becomes organizer
             role = 'organizer'
-            message = 'Joined as event organizer'
+            message_part = 'as the organizer'
         else:
-            # Others with correct PIN become participants
-            set_current_user(event_code, 'participant')
+            # Additional participants
             role = 'participant'
-            message = 'Joined as participant'
+            message_part = 'as a participant'
+
+        # Create participant record
+        participant_id = add_participant(event['id'], username)
+        if participant_id is None:
+            return jsonify({'error': 'Name already taken', 'success': False}), 409
+
+        # Create user account
+        user_id = create_user(username, pin, event['id'], role, participant_id)
+        if user_id is None:
+            return jsonify({'error': 'Username already taken for this event', 'success': False}), 409
+
+        # Set session
+        set_current_user(event_code, role, user_id, username)
 
         return jsonify({
             'action': 'joined',
             'event_code': event_code,
             'role': role,
             'phase': event['phase'],
-            'message': message,
+            'message': f'Successfully joined {message_part}!',
             'success': True
         })
 

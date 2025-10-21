@@ -23,6 +23,22 @@ def init_db():
         )
     ''')
 
+    # Create users table - for authentication
+    conn.execute('''
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT NOT NULL,
+            pin_hash TEXT NOT NULL,
+            event_id INTEGER NOT NULL,
+            participant_id INTEGER UNIQUE,
+            role TEXT NOT NULL CHECK (role IN ('organizer', 'participant')),
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (event_id) REFERENCES events (id) ON DELETE CASCADE,
+            FOREIGN KEY (participant_id) REFERENCES participants (id) ON DELETE CASCADE,
+            UNIQUE(username, event_id COLLATE NOCASE)
+        )
+    ''')
+
     # Create participants table
     conn.execute('''
         CREATE TABLE IF NOT EXISTS participants (
@@ -370,3 +386,58 @@ def _would_create_invalid_assignment(conn, event_id, drawer_id, giftee_id):
     # Could add more complex validation here in the future
     # e.g., prevent cycles, enforce rules, etc.
     return False
+
+# ===== USER MANAGEMENT FUNCTIONS =====
+
+def get_user_by_credentials(username, pin, event_id):
+    """Get user by username + PIN + event_id"""
+    conn = get_db_connection()
+    user = conn.execute('''
+        SELECT u.*, p.name as participant_name
+        FROM users u
+        LEFT JOIN participants p ON u.participant_id = p.id
+        WHERE u.username = ? AND u.pin_hash = ? AND u.event_id = ?
+    ''', (username, hash_pin(pin), event_id)).fetchone()
+    conn.close()
+    return dict(user) if user else None
+
+def create_user(username, pin, event_id, role, participant_id=None):
+    """Create a new user account"""
+    conn = get_db_connection()
+    try:
+        cursor = conn.execute('''
+            INSERT INTO users (username, pin_hash, event_id, role, participant_id)
+            VALUES (?, ?, ?, ?, ?)
+        ''', (username, hash_pin(pin), event_id, role, participant_id))
+        user_id = cursor.lastrowid
+        conn.commit()
+        return user_id
+    except sqlite3.IntegrityError:
+        return None  # Username already exists for this event
+    finally:
+        conn.close()
+
+def get_user(user_id):
+    """Get user by ID"""
+    conn = get_db_connection()
+    user = conn.execute('''
+        SELECT u.*, p.name as participant_name
+        FROM users u
+        LEFT JOIN participants p ON u.participant_id = p.id
+        WHERE u.id = ?
+    ''', (user_id,)).fetchone()
+    conn.close()
+    return dict(user) if user else None
+
+def get_users_for_event(event_id):
+    """Get all users for an event"""
+    conn = get_db_connection()
+    users = conn.execute('''
+        SELECT u.*, p.name as participant_name
+        FROM users u
+        LEFT JOIN participants p ON u.participant_id = p.id
+        WHERE u.event_id = ?
+        ORDER BY u.created_at
+    ''', (event_id,)).fetchall()
+    conn.close()
+    return [dict(user) for user in users]

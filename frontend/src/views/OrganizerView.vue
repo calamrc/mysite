@@ -6,12 +6,15 @@
         <div class="event-code-display">
           <span class="label">Event Code:</span>
           <span class="code">{{ eventCode }}</span>
-          <button @click="copyEventCode" class="btn btn-small" :disabled="codeCopied">
-            {{ codeCopied ? '✅ Copied!' : '📋 Copy' }}
+          <button @click="copyEventCode" class="btn btn-sm btn-secondary" :disabled="codeCopied" aria-label="Copy event code">
+            <span v-if="codeCopied" aria-hidden="true">✅</span>
+            <span v-else aria-hidden="true">📋</span>
+            {{ codeCopied ? 'Copied!' : 'Copy' }}
           </button>
         </div>
       </div>
-      <button @click="logout" class="btn btn-secondary" :disabled="loggingOut">
+      <button @click="logout" class="btn btn-outline" :disabled="loggingOut">
+        <span v-if="loggingOut" class="loading-spinner" aria-hidden="true"></span>
         {{ loggingOut ? 'Logging Out...' : '🚪 Logout' }}
       </button>
     </div>
@@ -48,16 +51,20 @@
 
           <form @submit.prevent="joinAsParticipant" class="participant-form">
             <div class="form-group">
+              <label for="participant-name" class="visually-hidden">Your Name</label>
               <input
+                id="participant-name"
                 v-model="participantName"
                 type="text"
                 placeholder="Enter your name"
                 maxlength="50"
+                class="form-control"
                 required
               />
             </div>
             <button type="submit" class="btn btn-primary" :disabled="joiningAsParticipant">
-              {{ joiningAsParticipant ? 'Joining...' : 'Join Exchange' }}
+              <span v-if="joiningAsParticipant" class="loading-spinner" aria-hidden="true"></span>
+              {{ joiningAsParticipant ? 'Joining...' : '🎁 Join Exchange' }}
             </button>
           </form>
         </div>

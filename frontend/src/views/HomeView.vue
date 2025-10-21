@@ -45,6 +45,7 @@
               type="text"
               placeholder="Enter your username"
               maxlength="50"
+              class="form-control"
               required
             />
           </div>
@@ -57,6 +58,7 @@
               type="password"
               placeholder="Enter PIN (4+ characters)"
               minlength="4"
+              class="form-control"
               required
             />
           </div>
@@ -69,16 +71,22 @@
               type="text"
               placeholder="Enter event code (e.g., ABC123)"
               maxlength="6"
+              class="form-control"
               style="text-transform: uppercase"
               required
             />
           </div>
 
           <div class="modal-actions">
-            <button type="submit" class="btn btn-primary" :disabled="processing">
-              {{ processing ? 'Processing...' : modalMode === 'create' ? 'Create Event' : 'Join Event' }}
+            <button
+              type="submit"
+              class="btn btn-primary btn-lg"
+              :disabled="processing"
+            >
+              <span v-if="processing" class="loading-spinner" aria-hidden="true"></span>
+              {{ processing ? 'Processing...' : modalMode === 'create' ? '🎄 Create Event' : '🎁 Join Event' }}
             </button>
-            <button type="button" @click="closeModal" class="btn btn-secondary">Cancel</button>
+            <button type="button" @click="closeModal" class="btn btn-outline">Cancel</button>
           </div>
         </form>
 
@@ -190,145 +198,115 @@ export default {
 
 <style scoped>
 .home {
-  text-align: center;
-  padding: 2rem 1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: var(--spacing-8) var(--spacing-4);
   max-width: 1200px;
   margin: 0 auto;
+  min-height: calc(100vh - 2 * var(--spacing-8));
 }
 
 .hero {
-  margin-bottom: 3rem;
+  margin-bottom: var(--spacing-12);
+  text-align: center;
 }
 
 .hero h1 {
-  font-size: 3rem;
-  margin-bottom: 1rem;
-  color: #2c3e50;
-  text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  font-size: var(--font-size-5xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text-primary);
+  margin-bottom: var(--spacing-4);
+  text-shadow: var(--shadow-sm);
+  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-secondary) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
 .hero p {
-  font-size: 1.3rem;
-  color: #666;
+  font-size: var(--font-size-xl);
+  color: var(--color-text-secondary);
   max-width: 600px;
-  margin: 0 auto 2rem;
+  margin: 0 auto var(--spacing-8);
+  line-height: var(--line-height-relaxed);
 }
 
 .action-section {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
-  gap: 2rem;
-  margin-bottom: 3rem;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: var(--spacing-8);
+  margin-bottom: var(--spacing-12);
   max-width: 900px;
-  margin-left: auto;
-  margin-right: auto;
+  width: 100%;
 }
 
 .action-card {
-  background: white;
-  padding: 2rem;
-  border-radius: 12px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-  border: 1px solid #e1e8ed;
+  background: var(--color-surface);
+  padding: var(--spacing-8);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-lg);
+  border: 1px solid var(--color-border);
+  transition: all var(--transition-normal);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.action-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-xl);
+  border-color: var(--color-border-hover);
 }
 
 .action-card h3 {
-  color: #2c3e50;
-  margin-bottom: 0.5rem;
-  font-size: 1.4rem;
+  color: var(--color-text-primary);
+  margin-bottom: var(--spacing-2);
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-semibold);
 }
 
 .action-card p {
-  color: #666;
-  margin-bottom: 1.5rem;
-}
-
-.action-form {
-  margin-bottom: 1rem;
-}
-
-.form-group {
-  margin-bottom: 1rem;
-}
-
-.form-group input {
-  width: 100%;
-  padding: 0.75rem;
-  border: 2px solid #e1e8ed;
-  border-radius: 8px;
-  font-size: 1rem;
-  transition: border-color 0.3s;
-  text-align: center;
-  font-weight: bold;
-}
-
-.form-group input:focus {
-  outline: none;
-  border-color: #3498db;
-}
-
-.btn {
-  background-color: #3498db;
-  color: white;
-  border: none;
-  padding: 0.75rem 1.5rem;
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 1rem;
-  font-weight: bold;
-  transition: background-color 0.3s;
-  width: 100%;
-}
-
-.btn:hover:not(:disabled) {
-  background-color: #2980b9;
-}
-
-.btn:disabled {
-  background-color: #95a5a6;
-  cursor: not-allowed;
-}
-
-.btn-secondary {
-  background-color: #2ecc71;
-}
-
-.btn-secondary:hover:not(:disabled) {
-  background-color: #27ae60;
-}
-
-.error {
-  color: #e74c3c;
-  font-size: 0.9rem;
-  margin-top: 0.5rem;
+  color: var(--color-text-secondary);
+  margin-bottom: var(--spacing-6);
+  line-height: var(--line-height-relaxed);
 }
 
 .features {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: 1.5rem;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: var(--spacing-6);
+  width: 100%;
+  margin-top: var(--spacing-8);
 }
 
 .feature-card {
-  background: white;
-  padding: 1.5rem;
-  border-radius: 8px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-  border: 1px solid #e1e8ed;
-  transition: transform 0.3s;
+  background: var(--color-surface);
+  padding: var(--spacing-6);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-md);
+  border: 1px solid var(--color-border);
+  transition: all var(--transition-normal);
+  text-align: center;
 }
 
 .feature-card:hover {
-  transform: translateY(-5px);
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-lg);
+  border-color: var(--color-primary-light);
 }
 
 .feature-card h3 {
-  color: #3498db;
-  margin-bottom: 0.5rem;
+  color: var(--color-primary);
+  margin-bottom: var(--spacing-3);
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-semibold);
 }
 
 .feature-card p {
-  color: #666;
+  color: var(--color-text-secondary);
+  line-height: var(--line-height-relaxed);
 }
 
 /* Modal Styles */

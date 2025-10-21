@@ -122,6 +122,24 @@ export default {
       modalError: ''
     }
   },
+  async mounted() {
+    // Check if user is already authenticated
+    try {
+      const response = await this.$http.get('/api/auth/status', { withCredentials: true })
+      if (response.data.authenticated && response.data.user) {
+        const user = response.data.user
+        // Redirect based on role
+        if (user.role === 'organizer' && user.event_code) {
+          this.$router.push(`/organizer/${user.event_code}`)
+        } else if (user.role === 'participant' && user.event_code) {
+          this.$router.push(`/participant/${user.event_code}`)
+        }
+      }
+    } catch (error) {
+      // Not authenticated or error, show home page normally
+      console.log('User not authenticated, showing home page')
+    }
+  },
   methods: {
     openModal(mode) {
       this.modalMode = mode

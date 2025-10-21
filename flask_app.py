@@ -546,6 +546,34 @@ def logout():
         logger.error(f"Error during logout: {e}")
         return jsonify({'error': 'Failed to logout', 'success': False}), 500
 
+# Auth status endpoint for frontend checks
+@app.route('/api/auth/status', methods=['GET'])
+def auth_status():
+    """Check current authentication status"""
+    try:
+        current_user = get_current_user()
+        if not current_user:
+            return jsonify({
+                'authenticated': False,
+                'user': None
+            })
+
+        return jsonify({
+            'authenticated': True,
+            'user': {
+                'role': current_user.get('role'),
+                'event_code': current_user.get('event_code'),
+                'user_id': current_user.get('user_id'),
+                'participant_name': current_user.get('participant_name')
+            }
+        })
+    except Exception as e:
+        logger.error(f"Error checking auth status: {e}")
+        return jsonify({
+            'error': 'Failed to check auth status',
+            'authenticated': False
+        }), 500
+
 # Health check endpoint for production monitoring
 @app.route('/health')
 def health_check():

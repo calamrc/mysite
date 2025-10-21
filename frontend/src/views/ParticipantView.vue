@@ -2,7 +2,7 @@
   <div class="participant">
   <div class="header">
     <div class="title-section">
-        <h1>🎁 Gift Exchange</h1>
+        <h1>Gift Exchange</h1>
         <div class="event-code-display">
           <span class="label">Event:</span>
           <span class="code">{{ eventCode }}</span>

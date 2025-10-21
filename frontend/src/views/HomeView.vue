@@ -1,7 +1,7 @@
 <template>
   <div class="home">
     <div class="hero">
-      <h1>🎄 Gift Exchange Manager</h1>
+      <h1>Gift Exchange Manager</h1>
       <p>Create secret Santa events and organize gift exchanges with friends and family</p>
     </div>
 
@@ -84,7 +84,7 @@
               :disabled="processing"
             >
               <span v-if="processing" class="loading-spinner" aria-hidden="true"></span>
-              {{ processing ? 'Processing...' : modalMode === 'create' ? '🎄 Create Event' : '🎁 Join Event' }}
+              {{ processing ? 'Processing...' : modalMode === 'create' ? 'Create Event' : 'Join Event' }}
             </button>
             <button type="button" @click="closeModal" class="btn btn-outline">Cancel</button>
           </div>

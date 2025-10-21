@@ -2,7 +2,7 @@
   <div class="organizer">
   <div class="header">
     <div class="title-section">
-        <h1>🎄 Gift Exchange Organizer</h1>
+        <h1>Gift Exchange Organizer</h1>
         <div class="event-code-display">
           <span class="label">Event Code:</span>
           <span class="code">{{ eventCode }}</span>
@@ -24,7 +24,7 @@
       <!-- Event Phase Info -->
       <div class="phase-info">
         <div class="phase-card">
-          <h3>📊 Event Status</h3>
+          <h3>Event Status</h3>
           <div class="phase-details">
             <div class="phase-indicator" :class="eventData.phase">
               <span class="phase-badge">{{ getPhaseDisplay() }}</span>
@@ -46,7 +46,7 @@
       <!-- Join as Participant -->
       <div v-if="eventData.phase === 'registration' && !isParticipant" class="join-participant-section">
         <div class="control-card">
-          <h3>🎁 Join as Participant</h3>
+          <h3>Join as Participant</h3>
           <p>As the organizer, you can also participate in the gift exchange. Enter your name to join.</p>
 
           <form @submit.prevent="joinAsParticipant" class="participant-form">
@@ -64,7 +64,7 @@
             </div>
             <button type="submit" class="btn btn-primary" :disabled="joiningAsParticipant">
               <span v-if="joiningAsParticipant" class="loading-spinner" aria-hidden="true"></span>
-              {{ joiningAsParticipant ? 'Joining...' : '🎁 Join Exchange' }}
+              {{ joiningAsParticipant ? 'Joining...' : 'Join Exchange' }}
             </button>
           </form>
         </div>
@@ -73,7 +73,7 @@
       <!-- Phase-specific controls -->
       <div v-if="eventData.phase === 'registration'" class="phase-controls">
         <div class="control-card">
-          <h3>🎯 Start Drawing Phase</h3>
+          <h3>Start Drawing Phase</h3>
           <p>Once participants have joined, start the drawing phase to begin gift assignments.</p>
           <button
             @click="startDrawingPhase"
@@ -90,7 +90,7 @@
 
       <!-- Participants List -->
       <div class="participants-section">
-        <h3>👥 Participants ({{ eventData.participants?.length || 0 }})</h3>
+        <h3>Participants ({{ eventData.participants?.length || 0 }})</h3>
 
         <div v-if="eventData.participants?.length === 0" class="empty-state">
           <p>No participants have joined yet. Share the event code <strong>{{ eventCode }}</strong> with others!</p>
@@ -118,7 +118,7 @@
       <!-- Event Complete Message -->
       <div v-if="eventData.is_complete" class="completion-message">
         <div class="completion-card">
-          <h3>🎉 Exchange Complete!</h3>
+          <h3>Exchange Complete!</h3>
           <p>All participants have made their draws. The gift exchange is now ready to begin!</p>
         </div>
       </div>

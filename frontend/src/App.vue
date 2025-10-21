@@ -1,7 +1,7 @@
 <template>
   <div id="app">
-    <!-- Clean, gift exchange themed app with no navigation bar -->
-    <!-- Each view handles its own header/navigation -->
+    <!-- Global Navigation Bar -->
+    <Navbar />
 
     <main>
       <router-view />
@@ -10,8 +10,13 @@
 </template>
 
 <script>
+import Navbar from './components/Navbar.vue'
+
 export default {
-  name: 'App'
+  name: 'App',
+  components: {
+    Navbar
+  }
 }
 </script>
 

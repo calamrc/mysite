@@ -24,12 +24,22 @@ app.secret_key = os.environ.get('SECRET_KEY', 'gift-exchange-dev-secret-key-chan
 FLASK_ENV = os.environ.get('FLASK_ENV', 'development')
 DEBUG = FLASK_ENV == 'development'
 
-# CORS configuration - enable credentials for sessions
+# CORS configuration - enable cross-origin requests from frontend
+# In CSR architecture, frontend runs separately from backend
 if DEBUG:
-    CORS(app, origins=['http://localhost:5173', 'http://127.0.0.1:5173'], supports_credentials=True)
+    # Development: Allow frontend dev server
+    CORS(app, origins=['http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:4173'], supports_credentials=True)
 else:
-    # In production, allow from same domain
-    CORS(app, origins=['*'], supports_credentials=True)
+    # Production: Allow frontend deployment domains
+    # Update these origins based on your frontend deployment URLs
+    frontend_origins = [
+        'http://localhost:4173',  # Vite preview
+        'http://localhost:3000',  # Alternative frontend port
+        # Add your production frontend URLs here
+        # 'https://yourdomain.com',
+        # 'https://www.yourdomain.com'
+    ]
+    CORS(app, origins=frontend_origins, supports_credentials=True)
 
 # Security headers
 @app.after_request
@@ -71,34 +81,7 @@ def clear_current_user():
     """Clear current user session"""
     session.pop('user', None)
 
-@app.route('/')
-def index():
-    # Try to serve the built Vue app from static directory
-    static_index = os.path.join(app.static_folder, 'index.html')
-    if os.path.exists(static_index):
-        with open(static_index, 'r') as f:
-            html_content = f.read()
 
-        # Replace Vite's default paths with Flask static paths
-        html_content = html_content.replace('/assets/', '/static/assets/')
-        html_content = html_content.replace('"/vite.svg"', '"/static/vite.svg"')
-
-        return render_template_string(html_content)
-
-    # Fallback to development mode template
-    return render_template_string("""<!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Gift Exchange - Secret Santa App</title>
-  </head>
-  <body>
-    <div id="app"></div>
-    <script type="module" src="http://localhost:5173/src/main.js"></script>
-  </body>
-</html>""")
 
 # API Routes - Gift Exchange
 

@@ -1,47 +1,63 @@
-# Task Manager - Flask + Vue.js SPA
+# Gift Exchange - Secret Santa App - CSR Architecture
 
-A simple task management application built with Flask (Python) backend and Vue.js frontend, using SQLite for data persistence.
+A Secret Santa (gift exchange) application with a Client-Side Rendering (CSR) architecture using Flask (Python) backend and Vue.js frontend with SQLite database.
 
 ## Features
 
-- ✅ Create, read, update, and delete tasks
-- ✅ Mark tasks as complete or incomplete
-- ✅ Client-side routing with Vue Router
-- ✅ Responsive design
-- ✅ RESTful API with proper error handling
-- ✅ SQLite database for data persistence
+- ✅ **Event Creation & Authentication**: Create events with username/PIN authentication
+- ✅ **Participant Management**: Join events, manage participants
+- ✅ **Drawing System**: Automated Secret Santa assignment with conflict prevention
+- ✅ **Real-time Status**: Live updates on drawing progress
+- ✅ **Role-based Access**: Organizer vs Participant views
+- ✅ **Responsive Design**: Works on desktop and mobile
+- ✅ **Client-side Routing**: Vue Router with proper SPA routing
+- ✅ **Cross-Origin Support**: Frontend and backend can be deployed separately
 
-## Technology Stack
+## Architecture Overview
 
-### Backend
-- **Flask** - Python web framework
+This application uses a **Client-Side Rendering (CSR) architecture** where the frontend and backend are completely separated:
+
+### Backend (API Server)
+- **Flask** - RESTful API server
 - **SQLite** - Database for data persistence
 - **Flask-CORS** - Cross-origin resource sharing
+- **Session-based authentication** - Secure cookie-based auth
 
-### Frontend
-- **Vue.js 3** - Progressive JavaScript framework
-- **Vue Router** - Official router for Vue.js
+### Frontend (SPA)
+- **Vue.js 3** - Client-side rendered Single Page Application
+- **Vue Router** - Client-side routing
 - **Vite** - Fast build tool and dev server
-- **Axios** - HTTP client for API calls
+- **Axios** - HTTP client for API communication
+
+### Production Deployment
+- **Frontend**: Static files served by web server (Nginx/Apache)
+- **Backend**: Flask API server
+- **Separate Domains**: Frontend and backend can be on different servers
 
 ## Project Structure
 
 ```
 mysite/
-├── flask_app.py          # Flask backend application
+├── flask_app.py          # Flask API backend (no HTML serving)
+├── flask_app.wsgi        # PythonAnywhere WSGI entry point
 ├── database.py           # SQLite database operations
 ├── requirements.txt      # Python dependencies
-├── templates/            # Flask HTML templates
-├── static/               # Vue.js build output (generated)
-├── frontend/             # Vue.js source code
+├── nginx.conf            # Example Nginx configuration
+│
+├── frontend/             # Vue.js SPA source code
 │   ├── src/
 │   │   ├── main.js       # Vue app entry point
 │   │   ├── App.vue       # Main Vue component
 │   │   ├── router.js     # Vue Router configuration
 │   │   └── views/        # Vue view components
 │   ├── public/           # Static assets
+│   ├── dist/             # Build output (generated)
 │   ├── package.json      # Node.js dependencies
-│   └── vite.config.js    # Vite configuration
+│   ├── vite.config.js    # Vite configuration
+│   ├── .env              # Frontend environment config
+│   └── .env.example      # Environment template
+│
+├── static/               # Legacy SSR build output (can be removed)
 ├── tasks.db              # SQLite database (generated)
 └── README.md
 ```
@@ -92,7 +108,7 @@ mysite/
    ```bash
    python flask_app.py
    ```
-   The backend will run on http://localhost:5000
+   The backend API will run on http://localhost:5000
 
 2. **Start the Vue.js frontend** (in a new terminal):
    ```bash
@@ -102,138 +118,181 @@ mysite/
    The frontend will run on http://localhost:5173
 
 3. **Access the application**:
-   - Frontend dev server: http://localhost:5173
-   - Backend API: http://localhost:5000/api/tasks
+   - **Frontend (Vue SPA)**: http://localhost:5173
+   - **Backend API**: http://localhost:5000/api
 
-### Production Mode
+### Production Testing
 
-1. **Build the Vue.js frontend**:
+1. **Build the frontend for production**:
    ```bash
    cd frontend
    npm run build
    cd ..
    ```
 
-2. **Start the Flask application**:
+2. **Test the built frontend**:
+   ```bash
+   cd frontend
+   npm run preview
+   ```
+   The built frontend will run on http://localhost:4173
+
+3. **Keep Flask running separately**:
+   ```bash
+   # In another terminal
+   python flask_app.py
+   ```
+
+### Production Deployment
+
+For production deployment, deploy the backend and frontend separately:
+
+#### Option 1: Single Server with Nginx
+1. **Build the frontend**:
+   ```bash
+   cd frontend
+   npm run build
+   cd ..
+   ```
+
+2. **Configure Nginx** (see `nginx.conf` for example):
+   - Serve `frontend/dist/` as static files
+   - Proxy `/api` routes to Flask backend
+
+3. **Deploy Flask API**:
    ```bash
    python flask_app.py
    ```
 
-3. **Access the application**:
-   The full application will be available at http://localhost:5000
+#### Option 2: Separate Deployments
+- **Frontend**: Deploy `frontend/dist/` to any static hosting (Vercel, Netlify, Cloudflare Pages)
+- **Backend**: Deploy Flask API to PythonAnywhere, Heroku, or any server
+- **Update CORS**: Add your production domain to `FRONTEND_ORIGINS` in `flask_app.py`
 
 ## API Endpoints
 
-The Flask backend provides the following REST API endpoints:
+The Flask backend provides the following REST API endpoints for gift exchange management:
 
-- `GET /api/tasks` - Get all tasks
-- `POST /api/tasks` - Create a new task
-- `GET /api/tasks/<id>` - Get a specific task
-- `PUT /api/tasks/<id>` - Update a task
-- `DELETE /api/tasks/<id>` - Delete a task
+### Events
+- `POST /api/events` - Create a new event
+- `POST /api/events/join-or-create` - Join/create event with authentication
 
-### Task Object Structure
+### Event Management
+- `GET /api/events/<event_code>/status` - Get event status and participants
+- `POST /api/events/<event_code>/participants` - Register as participant
+- `POST /api/events/<event_code>/start-drawing` - Start drawing phase (organizers only)
+- `POST /api/events/<event_code>/draw` - Perform Secret Santa draw
 
+### Utility
+- `POST /api/simple-draw` - Simple name drawing utility
+- `POST /api/logout` - Logout and clear session
+- `GET /health` - Health check endpoint
+
+### Authentication Flow
+
+The app uses session-based authentication with cookies. Frontend sends credentials in request body, Flask maintains sessions via secure cookies.
+
+#### Example Event Creation
 ```json
+POST /api/events/join-or-create
 {
-  "id": 1,
-  "title": "Task title",
-  "description": "Task description",
-  "completed": false,
-  "created_at": "2025-01-22T10:30:00",
-  "updated_at": "2025-01-22T10:30:00"
+  "username": "john_doe",
+  "pin": "123456"
 }
 ```
 
-## Deployment to PythonAnywhere
+#### Example Response
+```json
+{
+  "action": "created",
+  "event_code": "ABC123",
+  "role": "organizer",
+  "message": "Event created! Welcome john_doe",
+  "success": true
+}
+```
 
-This application is configured for deployment on PythonAnywhere. Follow these steps:
+## CSR Deployment Options
 
-### Prerequisites
-- PythonAnywhere account with "Hacker" plan or higher (required for custom domains/web apps)
-- This project uploaded to PythonAnywhere
+This application uses Client-Side Rendering, so the backend and frontend must be deployed separately.
 
-### Step 1: Upload Files to PythonAnywhere
+### Backend Deployment (PythonAnywhere)
 
-1. **Upload the entire project** to your PythonAnywhere account:
-   - Use SCP, SFTP, or the PythonAnywhere file manager
-   - Upload all files including the `static/` directory with built Vue.js files
+1. **Upload backend files** to your PythonAnywhere account:
+   - `flask_app.py`
+   - `flask_app.wsgi`
+   - `database.py`
+   - `requirements.txt`
 
-2. **Ensure the static files are present**:
+2. **Create virtual environment**:
+   ```bash
+   mkvirtualenv --python=/usr/bin/python3.10 mysite-backend
+   workon mysite-backend
+   pip install -r requirements.txt
    ```
-   yourusername.pythonanywhere.com/
-   ├── flask_app.wsgi
-   ├── flask_app.py
-   ├── database.py
-   ├── requirements.txt
-   ├── static/
-   │   ├── index.html
-   │   └── assets/
-   │       ├── main-*.js
-   │       └── index-*.css
-   └── (other files...)
+
+3. **Configure WSGI**:
+   ```python
+   import sys
+   import os
+
+   project_dir = '/home/yourusername/mysite'
+   if project_dir not in sys.path:
+       sys.path.insert(0, project_dir)
+
+   os.environ['FLASK_ENV'] = 'production'
+   # Add your frontend domains here for CORS
+   os.environ['FRONTEND_ORIGINS'] = 'https://your-frontend-domain.com,https://www.your-frontend-domain.com'
+
+   from flask_app import app as application
    ```
 
-### Step 2: Create Virtual Environment
+4. **Test deployment**:
+   - Check `https://your-api-domain.pythonanywhere.com/health`
+   - API endpoints available at `https://your-api-domain.pythonanywhere.com/api/*`
 
-Create a virtual environment on PythonAnywhere:
+### Frontend Deployment Options
 
-```bash
-mkvirtualenv --python=/usr/bin/python3.10 mysite
-workon mysite
-pip install -r requirements.txt
-```
+#### Option A: Static Hosting (Recommended)
+Deploy `frontend/dist/` to Vercel, Netlify, or Cloudflare Pages:
 
-### Step 3: Configure Web App
+1. **Build the frontend**:
+   ```bash
+   cd frontend
+   npm run build
+   ```
 
-1. Go to **Web** tab in PythonAnywhere dashboard
-2. Click **Add a new web app**
-3. Choose **Manual configuration** (or **Flask** if available)
-4. Set **Python version** to 3.10
-5. Enter your virtual environment path: `/home/yourusername/.virtualenvs/mysite`
+2. **Deploy the `dist/` folder** to your static hosting provider
+3. **Configure environment**:
+   - Set `VITE_API_BASE_URL=https://your-api-domain.pythonanywhere.com`
 
-### Step 4: Configure WSGI
+#### Option B: Nginx on Same Server
+If deploying both on the same server:
 
-In the **WSGI configuration file** field, enter:
+1. **Build frontend**: `cd frontend && npm run build`
+2. **Configure Nginx** using the provided `nginx.conf`
+3. **Frontend available at**: `https://yourdomain.com/`
+4. **API available at**: `https://yourdomain.com/api/*`
 
-```
-/var/www/yourusername_pythonanywhere_com_wsgi.py
-```
+### CORS Configuration
 
-Update the WSGI file content to:
+For cross-origin requests to work, update the `frontend_origins` list in `flask_app.py` or set the `FRONTEND_ORIGINS` environment variable:
 
 ```python
-import sys
-import os
-
-# Add project directory to path
-project_dir = '/home/yourusername/mysite'
-if project_dir not in sys.path:
-    sys.path.insert(0, project_dir)
-
-# Set environment for production
-os.environ['FLASK_ENV'] = 'production'
-
-# Import Flask application
-from flask_app import app as application
+frontend_origins = [
+    'http://localhost:4173',  # Vite preview
+    'http://localhost:3000',  # Alternative frontend port
+    'https://your-frontend-domain.com',
+    'https://www.your-frontend-domain.com'
+]
 ```
 
-### Step 5: Static Files Configuration
+### Testing CSR Deployment
 
-In the Web app configuration:
-
-- **Static URL**: `/static/`
-- **Static directory path**: `/home/yourusername/mysite/static`
-
-### Step 6: Reload Web App
-
-Click **Reload** in the PythonAnywhere Web tab to apply changes.
-
-### Step 7: Test Deployment
-
-1. **Check health endpoint**: `https://yourusername.pythonanywhere.com/health`
-2. **Visit your app**: `https://yourusername.pythonanywhere.com`
-3. **Check logs** using PythonAnywhere's "Server error log" if issues occur
+1. **Test API endpoints** directly: `https://your-api-domain.pythonanywhere.com/api/events/join-or-create`
+2. **Test frontend** at its deployed URL
+3. **Verify CORS** by checking browser network requests
+4. **Check session cookies** are being set properly
 
 ### Troubleshooting Common Issues
 

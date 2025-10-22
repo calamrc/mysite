@@ -318,8 +318,9 @@ export default {
   flex: 1;
 }
 
+.form-group,
 .username-input-group {
-  margin: var(--spacing-6) 0;
+  margin-bottom: var(--spacing-6);
 }
 
 .input-wrapper {

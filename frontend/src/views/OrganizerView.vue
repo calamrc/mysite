@@ -1,50 +1,12 @@
 <template>
   <div class="organizer">
-    <!-- Event Status Badge -->
-    <div class="status-badge" :class="eventData.phase">
-      {{ getPhaseDisplay() }}
-    </div>
-
-    <!-- Event Code Section -->
-    <div class="event-code-section">
-      <div class="event-code-display">
-        <span class="code">{{ eventCode }}</span>
-        <button @click="copyEventCode" class="btn btn-sm" :disabled="codeCopied" aria-label="Copy event code">
-          <span v-if="codeCopied" aria-hidden="true">✅</span>
-          <span v-else aria-hidden="true">📋</span>
-          {{ codeCopied ? 'Copied!' : 'Copy' }}
-        </button>
-      </div>
-    </div>
-
     <!-- Main Organizer Interface -->
     <div class="main-content">
 
-      <!-- Join as Participant -->
-      <div v-if="eventData.phase === 'registration' && !isParticipant" class="join-participant-section">
-        <div class="control-card">
-          <h3>Join as Participant</h3>
-          <p>As the organizer, you can also participate in the gift exchange. Enter your name to join.</p>
-
-          <form @submit.prevent="joinAsParticipant" class="participant-form">
-            <div class="form-group">
-              <label for="participant-name" class="visually-hidden">Your Name</label>
-              <input
-                id="participant-name"
-                v-model="participantName"
-                type="text"
-                placeholder="Enter your name"
-                maxlength="50"
-                class="form-control"
-                required
-              />
-            </div>
-            <button type="submit" class="btn btn-primary" :disabled="joiningAsParticipant">
-              <span v-if="joiningAsParticipant" class="loading-spinner" aria-hidden="true"></span>
-              {{ joiningAsParticipant ? 'Joining...' : 'Join Exchange' }}
-            </button>
-          </form>
-        </div>
+      <div v-if="eventData.phase === 'registration'" class="waiting-state">
+        <div class="waiting-icon">⏳</div>
+        <h2>Registration Open</h2>
+        <p>Share the event code <span class='clickable-code' @click='copyEventCode'>{{ codeCopied ? 'Copied!' : eventCode }}</span> to invite participants.</p>
       </div>
 
       <!-- Phase-specific controls -->
@@ -62,6 +24,30 @@
           <p v-if="(eventData.joined_count || 0) < 2" class="warning">
             Need at least 2 participants to start drawing
           </p>
+        </div>
+      </div>
+
+      <!-- Participant Drawing Section -->
+      <div v-if="eventData.phase === 'drawing'" class="drawing-section">
+        <div v-if="hasDrawn" class="drawn-state">
+          <div class="success-icon">🎁</div>
+          <h2>Gift Assignment Complete!</h2>
+          <p>You have been assigned to buy a gift for:</p>
+          <div class="giftee-name">{{ yourGiftee }}</div>
+          <p class="success-note">Happy gifting!</p>
+        </div>
+
+        <div v-else class="draw-state">
+          <div class="draw-icon">🎯</div>
+          <h2>Ready to Draw!</h2>
+          <p>It's time to discover who you'll be buying a gift for.</p>
+          <button
+            @click="makeDraw"
+            class="btn btn-success btn-large"
+            :disabled="drawing"
+          >
+            {{ drawing ? 'Drawing...' : 'Make Your Draw' }}
+          </button>
         </div>
       </div>
 
@@ -90,6 +76,11 @@
             </div>
           </div>
         </div>
+      </div>
+
+      <!-- Participant Error Messages -->
+      <div v-if="drawError" class="error-message">
+        <p>{{ drawError }}</p>
       </div>
 
       <!-- Event Complete Message -->
@@ -130,10 +121,14 @@ export default {
       codeCopied: false,
       loading: false,
       error: '',
-      participantName: '',
-      joiningAsParticipant: false,
-      isParticipant: false,
-      loggingOut: false
+      isParticipant: true, // Organizers are always participants
+      participantName: '', // Organizer's participant name
+      loggingOut: false,
+      // Participant interface data
+      drawing: false,
+      drawError: '',
+      hasDrawn: false,
+      yourGiftee: ''
     }
   },
   mounted() {
@@ -190,8 +185,22 @@ export default {
 
         if (response.data.success) {
           this.eventData = response.data
-          // Set isParticipant based on API response
-          this.isParticipant = response.data.is_participant || false
+
+          // Set organizer's participant name from API response
+          if (response.data.participant_name) {
+            this.participantName = response.data.participant_name
+          }
+
+          // Organizers are always participants by default - find this organizer in participants list
+          if (this.participantName && this.eventData.participants?.length > 0) {
+            const organizer = this.eventData.participants?.find(p =>
+              p.name.toLowerCase() === this.participantName.toLowerCase()
+            )
+            if (organizer) {
+              this.hasDrawn = organizer.status.toLowerCase() === 'drawn'
+              this.yourGiftee = organizer.giftee_name || ''
+            }
+          }
         } else {
           this.error = response.data.error || 'Failed to load event data'
         }
@@ -226,7 +235,7 @@ export default {
     },
 
     copyEventCode() {
-      navigator.clipboard.writeText(this.eventCode.toUpperCase()).then(() => {
+      navigator.clipboard.writeText(this.eventCode).then(() => {
         this.codeCopied = true
         setTimeout(() => {
           this.codeCopied = false
@@ -236,37 +245,29 @@ export default {
       })
     },
 
-    getPhaseDisplay() {
-      const phaseMap = {
-        'registration': 'Registration Open',
-        'drawing': 'Drawing Phase'
-      }
-      return phaseMap[this.eventData.phase] || this.eventData.phase
-    },
+    async makeDraw() {
+      if (this.drawing || this.hasDrawn) return
 
-    async joinAsParticipant() {
-      if (this.joiningAsParticipant) return
-
-      this.joiningAsParticipant = true
-      this.error = ''
+      this.drawing = true
+      this.drawError = ''
 
       try {
-        const response = await axios.post(`/api/events/${this.eventCode}/participants`, {
-          name: this.participantName.trim()
-        })
+        const response = await axios.post(`/api/events/${this.eventCode}/draw`)
 
         if (response.data.success) {
-          this.isParticipant = true
-          await this.loadEventData() // Refresh to show updated participant list
-          this.participantName = '' // Clear the form
+          this.yourGiftee = response.data.giftee_name
+          this.hasDrawn = true
+          this.eventData.is_complete = response.data.is_complete
+          this.eventData.drawn_count = (this.eventData.drawn_count || 0) + 1
         } else {
-          this.error = response.data.error || 'Failed to join as participant'
+          this.drawError = response.data.error || 'Failed to make draw'
         }
       } catch (error) {
-        this.error = error.response?.data?.error || 'Failed to join as participant'
-        console.error('Join participant error:', error)
+        this.drawError = error.response?.data?.error || 'Failed to make draw'
+        console.error('Draw error:', error)
       } finally {
-        this.joiningAsParticipant = false
+        this.drawing = false
+        await this.loadEventData() // Refresh data to update participant list
       }
     },
 
@@ -293,63 +294,56 @@ export default {
 
 <style scoped>
 .organizer {
-  max-width: 1200px;
+  max-width: 600px;
   margin: 0 auto;
   padding: var(--spacing-4) var(--spacing-4);
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--spacing-8);
+  gap: var(--spacing-6);
 }
 
-.status-badge {
-  background: var(--color-primary-light);
-  color: var(--color-primary-dark);
-  padding: var(--spacing-3) var(--spacing-6);
-  border-radius: var(--radius-xl);
-  font-weight: var(--font-weight-medium);
-  font-size: var(--font-size-lg);
+
+
+.waiting-state {
   text-align: center;
-}
-
-.status-badge.registration {
+  padding: var(--spacing-8);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-lg);
+  width: 100%;
   background: var(--color-success-light);
   color: var(--color-success-dark);
 }
 
-.status-badge.drawing {
-  background: var(--color-warning-light);
-  color: var(--color-warning-dark);
+.waiting-icon {
+  font-size: 4rem;
+  margin-bottom: var(--spacing-4);
 }
 
-.event-code-section {
-  text-align: center;
+.waiting-state h2 {
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-semibold);
+  margin-bottom: var(--spacing-2);
 }
 
-.event-code-display {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--spacing-4);
-  background: var(--color-surface);
-  padding: var(--spacing-6);
-  border-radius: var(--radius-xl);
-  box-shadow: var(--shadow-md);
-  border: 1px solid var(--color-border);
+.waiting-state p {
+  font-size: var(--font-size-lg);
+  color: var(--color-text-secondary);
 }
 
-.event-code-display .code {
+.clickable-code {
   font-family: 'JetBrains Mono', 'Fira Code', monospace;
-  font-size: var(--font-size-3xl);
   font-weight: var(--font-weight-bold);
-  color: var(--color-text-primary);
-  background: var(--color-background);
-  padding: var(--spacing-3);
+  background: rgba(255, 255, 255, 0.8);
+  padding: var(--spacing-2) var(--spacing-3);
   border-radius: var(--radius-lg);
+  cursor: pointer;
   border: 2px solid var(--color-border);
-  min-width: 120px;
-  text-align: center;
   letter-spacing: 0.025em;
+  user-select: none;
 }
+
+
 
 .auth-modal {
   position: fixed;
@@ -463,6 +457,7 @@ export default {
   padding: 2rem;
   border-radius: 12px;
   box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  width: 100%;
 }
 
 .control-card h3 {
@@ -510,6 +505,7 @@ export default {
   border-radius: 12px;
   box-shadow: 0 2px 8px rgba(0,0,0,0.1);
   color: #666;
+  width: 100%;
 }
 
 .participants-grid {
@@ -571,6 +567,7 @@ export default {
   border-radius: 12px;
   text-align: center;
   box-shadow: 0 4px 16px rgba(39, 174, 96, 0.2);
+  width: 100%;
 }
 
 .completion-card h3 {
@@ -614,26 +611,108 @@ export default {
   background-color: #7f8c8d;
 }
 
+.drawing-section {
+  width: 100%;
+}
+
+.drawn-state {
+  background: var(--color-success-light);
+  color: var(--color-success-dark);
+}
+
+.draw-state {
+  background: var(--color-accent-light); /* Temporarily different color */
+  color: var(--color-primary-dark);
+}
+
+.drawn-state,
+.draw-state {
+  text-align: center;
+  padding: var(--spacing-8);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-lg);
+  width: 100%;
+}
+
+.success-icon,
+.draw-icon {
+  font-size: 4rem;
+  margin-bottom: var(--spacing-4);
+}
+
+.drawn-state h2,
+.draw-state h2 {
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-semibold);
+  margin-bottom: var(--spacing-2);
+}
+
+.drawn-state p,
+.draw-state p {
+  font-size: var(--font-size-lg);
+  margin-bottom: var(--spacing-6);
+}
+
+.drawn-state p {
+  margin-bottom: var(--spacing-4);
+}
+
+.giftee-name {
+  font-size: var(--font-size-3xl);
+  font-weight: var(--font-weight-bold);
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  background: rgba(255, 255, 255, 0.8);
+  padding: var(--spacing-4);
+  border-radius: var(--radius-lg);
+  border: 2px solid rgba(255, 255, 255, 0.5);
+  margin: var(--spacing-4) 0;
+}
+
+.success-note {
+  font-size: var(--font-size-base);
+  opacity: 0.9;
+}
+
+.btn-large {
+  padding: var(--spacing-4) var(--spacing-8);
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-bold);
+  margin-bottom: var(--spacing-4);
+}
+
+.draw-note {
+  font-size: var(--font-size-base);
+  color: rgba(255, 255, 255, 0.8);
+  font-style: italic;
+}
+
+.error-message {
+  background: var(--color-error-light);
+  color: var(--color-error-dark);
+  padding: var(--spacing-4);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-error);
+  text-align: center;
+  width: 100%;
+}
+
 @media (max-width: 768px) {
   .organizer {
     padding: var(--spacing-2) var(--spacing-2);
     gap: var(--spacing-4);
   }
 
-  .status-badge {
-    padding: var(--spacing-2) var(--spacing-4);
-    font-size: var(--font-size-base);
+  .waiting-icon {
+    font-size: 3rem;
   }
 
-  .event-code-display {
-    flex-direction: column;
-    gap: var(--spacing-3);
-    padding: var(--spacing-4);
+  .waiting-state h2 {
+    font-size: var(--font-size-xl);
   }
 
-  .event-code-display .code {
-    font-size: var(--font-size-2xl);
-    min-width: 100px;
+  .clickable-code {
+    padding: var(--spacing-1) var(--spacing-2);
+    font-size: var(--font-size-sm);
   }
 
   .modal-actions {
@@ -642,6 +721,31 @@ export default {
 
   .participants-grid {
     grid-template-columns: 1fr;
+  }
+
+  .drawn-state,
+  .draw-state {
+    padding: var(--spacing-6);
+  }
+
+  .success-icon,
+  .draw-icon {
+    font-size: 3rem;
+  }
+
+  .drawn-state h2,
+  .draw-state h2 {
+    font-size: var(--font-size-xl);
+  }
+
+  .giftee-name {
+    font-size: var(--font-size-2xl);
+    padding: var(--spacing-3);
+  }
+
+  .btn-large {
+    padding: var(--spacing-3) var(--spacing-6);
+    font-size: var(--font-size-lg);
   }
 }
 </style>

@@ -457,26 +457,35 @@ def perform_user_draw(event_code):
 
         # Check authentication
         current_user = get_current_user()
-        if not current_user or current_user.get('event_code') != event_code or current_user.get('role') != 'participant':
-            return jsonify({'error': 'Participant authentication required', 'success': False}), 401
+        if not current_user or current_user.get('event_code') != event_code or current_user.get('role') not in ['participant', 'organizer']:
+            return jsonify({'error': 'Authentication required', 'success': False}), 401
 
-        participant_id = current_user.get('user_id')
-        if not participant_id:
-            return jsonify({'error': 'Participant not registered', 'success': False}), 400
+        current_user_id = current_user.get('user_id')
+        if not current_user_id:
+            return jsonify({'error': 'Not authenticated', 'success': False}), 401
+
+        # Get participant_id from user record (users table links to participants table)
+        user_info = get_user(current_user_id)
+        if not user_info:
+            return jsonify({'error': 'User not found', 'success': False}), 404
+
+        if not user_info.get('participant_id'):
+            return jsonify({'error': 'Not registered as participant', 'success': False}), 400
+
+        participant_id = user_info['participant_id']
+        participant_name = user_info.get('participant_name', 'Unknown')
 
         # Get event
         event = get_event_by_code(event_code)
         if not event:
             return jsonify({'error': 'Event not found', 'success': False}), 404
 
-        participant_name = current_user.get('name', 'Unknown')
-
         # Perform the draw
         result = perform_draw(event['id'], participant_id, participant_name)
 
         if result['success']:
             # Update session to reflect drawn state
-            set_current_user(event_code, 'participant', user_id=participant_id, name=participant_name)
+            set_current_user(event_code, 'participant', user_id=participant_id, participant_name=participant_name)
 
             # Check if event is now complete
             is_complete = is_event_complete(event['id'])

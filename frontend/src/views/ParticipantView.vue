@@ -1,10 +1,5 @@
 <template>
   <div class="participant">
-    <!-- Welcome Message -->
-    <div class="welcome-message">
-      <h1>Welcome, {{ participantName }}!</h1>
-    </div>
-
     <!-- Main Participant Interface -->
     <div class="main-content">
       <div v-if="eventData.phase === 'registration'" class="waiting-state">
@@ -33,7 +28,6 @@
           >
             {{ drawing ? 'Drawing...' : 'Make Your Draw' }}
           </button>
-          <p class="draw-note">This action cannot be undone!</p>
         </div>
       </div>
 
@@ -73,7 +67,7 @@ export default {
       error: '',
       hasDrawn: false,
       yourGiftee: '',
-      loggingOut: false
+      isAuthenticated: false
     }
   },
   async mounted() {
@@ -102,6 +96,7 @@ export default {
       }
 
       // User is authorized - load event data
+      this.isAuthenticated = true
       await this.loadEventData()
 
     } catch (error) {
@@ -150,10 +145,6 @@ export default {
     async makeDraw() {
       if (this.drawing || this.hasDrawn) return
 
-      if (!confirm('Are you ready to discover your gift assignment? This cannot be undone!')) {
-        return
-      }
-
       this.drawing = true
       this.drawError = ''
 
@@ -165,9 +156,6 @@ export default {
           this.hasDrawn = true
           this.eventData.is_complete = response.data.is_complete
           this.eventData.drawn_count = (this.eventData.drawn_count || 0) + 1
-
-          // Success message could be shown here
-          alert(`🎁 You have been assigned to buy a gift for: ${this.yourGiftee}\n\nHappy gifting! 🎄`)
         } else {
           this.drawError = response.data.error || 'Failed to make draw'
         }
@@ -176,37 +164,6 @@ export default {
         console.error('Draw error:', error)
       } finally {
         this.drawing = false
-      }
-    },
-
-    getPhaseDescription() {
-      if (this.eventData.phase === 'registration') {
-        return 'The event is currently accepting participants. You\'ll be able to make your draw once the organizer starts the drawing phase.'
-      } else if (this.eventData.phase === 'drawing') {
-        if (this.hasDrawn) {
-          return 'You have successfully made your gift assignment!'
-        } else {
-          return 'It\'s time to discover your gift assignment. Click the button below to make your draw!'
-        }
-      }
-      return 'Loading event status...'
-    },
-
-    async logout() {
-      if (this.loggingOut) return
-
-      this.loggingOut = true
-
-      try {
-        await axios.post('/api/logout')
-        // Redirect to home page after successful logout
-        this.$router.push('/')
-      } catch (error) {
-        console.error('Logout error:', error)
-        // Still redirect to home even if logout API fails
-        this.$router.push('/')
-      } finally {
-        this.loggingOut = false
       }
     }
   }
@@ -222,17 +179,6 @@ export default {
   flex-direction: column;
   align-items: center;
   gap: var(--spacing-6);
-}
-
-.welcome-message {
-  text-align: center;
-}
-
-.welcome-message h1 {
-  font-size: var(--font-size-4xl);
-  font-weight: var(--font-weight-bold);
-  color: var(--color-primary);
-  margin-bottom: var(--spacing-4);
 }
 
 .main-content {
@@ -343,12 +289,6 @@ export default {
   margin-bottom: var(--spacing-4);
 }
 
-.draw-note {
-  font-size: var(--font-size-base);
-  color: rgba(255, 255, 255, 0.8);
-  font-style: italic;
-}
-
 .error-message {
   background: var(--color-error-light);
   color: var(--color-error-dark);
@@ -363,10 +303,6 @@ export default {
   .participant {
     padding: var(--spacing-2) var(--spacing-2);
     gap: var(--spacing-4);
-  }
-
-  .welcome-message h1 {
-    font-size: var(--font-size-3xl);
   }
 
   .waiting-state,

@@ -61,7 +61,6 @@
           </div>
 
           <div v-if="modalMode === 'join'" class="form-group">
-            <label for="eventCode">Event Code</label>
             <input
               id="eventCode"
               v-model="modalEventCode"
@@ -69,7 +68,6 @@
               placeholder="Enter event code (e.g., ABC123)"
               maxlength="6"
               class="form-control"
-              style="text-transform: uppercase"
               required
             />
           </div>

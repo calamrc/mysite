@@ -320,7 +320,17 @@ export default {
 
 .form-group,
 .username-input-group {
-  margin-bottom: var(--spacing-6);
+  margin-bottom: var(--spacing-4);
+}
+
+/* Reduce space between username and PIN */
+.username-input-group {
+  margin-bottom: var(--spacing-3);
+}
+
+/* Ensure proper spacing between PIN and event code */
+.form-group:has(#pin) {
+  margin-bottom: var(--spacing-5);
 }
 
 .input-wrapper {

@@ -105,6 +105,7 @@
 
 <script>
 import axios from 'axios'
+import { AuthService } from '@/utils/auth'
 
 export default {
   name: 'OrganizerView',
@@ -143,15 +144,38 @@ export default {
   },
   methods: {
     async checkAuthentication() {
-      // Skip authentication modal if user is already authenticated (created the event)
-      // Try to load event data directly - if it fails, show auth modal
       try {
-        await this.loadEventData()
-        // If loadEventData succeeds, user is authenticated
+        // Check authentication status and role
+        const authResult = await AuthService.checkAuthStatus()
+
+        if (!authResult.authenticated) {
+          // Not authenticated - redirect to home
+          this.$router.push('/')
+          return
+        }
+
+        // Validate role for organizer view
+        const roleValidation = AuthService.validateRoleForRoute('organizer', authResult.user, this.eventCode)
+
+        if (!roleValidation.valid) {
+          if (roleValidation.reason === 'wrong_role') {
+            // Wrong role - redirect to correct view
+            this.$router.push(roleValidation.redirectTo)
+          } else {
+            // Other auth issues - redirect to home
+            this.$router.push('/')
+          }
+          return
+        }
+
+        // User is authorized - load event data
         this.isAuthenticated = true
+        await this.loadEventData()
+
       } catch (error) {
-        // If it fails, stay with modal
-        this.isAuthenticated = false
+        console.error('Authentication check failed:', error)
+        // On auth check failure, redirect to home
+        this.$router.push('/')
       }
     },
 
@@ -248,10 +272,6 @@ export default {
 
     async logout() {
       if (this.loggingOut) return
-
-      if (!confirm('Are you sure you want to logout? You will need to log back in to access the event.')) {
-        return
-      }
 
       this.loggingOut = true
 

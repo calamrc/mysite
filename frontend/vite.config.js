@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
+import { resolve } from 'path'
 
 // Get API base URL from environment (for production) or use default for development
 const apiTarget = process.env.VITE_API_BASE_URL || 'http://localhost:5000'
@@ -41,6 +42,12 @@ export default defineConfig({
   },
   // Configure base path for Flask static serving
   base: '/static/',
+  // Path aliases
+  resolve: {
+    alias: {
+      '@': resolve(__dirname, 'src')
+    }
+  },
   // Define environment variables available in the frontend
   define: {
     __VUE_PROD_DEVTOOLS__: false,

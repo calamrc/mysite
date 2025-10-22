@@ -47,6 +47,7 @@
 
 <script>
 import axios from 'axios'
+import { AuthService } from '@/utils/auth'
 
 export default {
   name: 'ParticipantView',
@@ -75,8 +76,39 @@ export default {
       loggingOut: false
     }
   },
-  mounted() {
-    this.loadEventData()
+  async mounted() {
+    // First check authentication and role validation
+    try {
+      const authResult = await AuthService.checkAuthStatus()
+
+      if (!authResult.authenticated) {
+        // Not authenticated - redirect to home
+        this.$router.push('/')
+        return
+      }
+
+      // Validate role for participant view
+      const roleValidation = AuthService.validateRoleForRoute('participant', authResult.user, this.eventCode)
+
+      if (!roleValidation.valid) {
+        if (roleValidation.reason === 'wrong_role') {
+          // Wrong role - redirect to correct view
+          this.$router.push(roleValidation.redirectTo)
+        } else {
+          // Other auth issues - redirect to home
+          this.$router.push('/')
+        }
+        return
+      }
+
+      // User is authorized - load event data
+      await this.loadEventData()
+
+    } catch (error) {
+      console.error('Authentication check failed:', error)
+      // On auth check failure, redirect to home
+      this.$router.push('/')
+    }
   },
   methods: {
     async loadEventData() {
@@ -162,10 +194,6 @@ export default {
 
     async logout() {
       if (this.loggingOut) return
-
-      if (!confirm('Are you sure you want to logout? You will need to log back in to access the event.')) {
-        return
-      }
 
       this.loggingOut = true
 

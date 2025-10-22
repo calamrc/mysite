@@ -185,6 +185,7 @@ export default {
           // Store username in localStorage for navbar
           const authData = {
             display_name: response.data.display_name,
+            entered_username: this.modalUsername, // Store the username the user entered
             role: response.data.role,
             event_code: response.data.event_code,
             user_id: response.data.user_id || null

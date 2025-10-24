@@ -1,11 +1,18 @@
 <template>
   <div class="home">
-    <div class="action-section">
+    <!-- Loading state while checking authentication -->
+    <div v-if="checkingAuth" class="loading-state">
+      <div class="loading-spinner" aria-hidden="true"></div>
+      <p>Checking authentication...</p>
+    </div>
+
+    <!-- Main content (only show after auth check completes) -->
+    <div v-else class="action-section">
       <!-- Join Event -->
       <div class="action-card">
         <h3>🎁 Join an Event</h3>
         <p>Enter an event code to join an existing gift exchange</p>
-        <button @click="openModal('join')" class="btn btn-primary">
+        <button @click="openModal('join')" class="btn btn-primary" :disabled="isRedirecting">
           Join Event
         </button>
       </div>
@@ -14,10 +21,16 @@
       <div class="action-card">
         <h3>✨ Create New Event</h3>
         <p>Start a new gift exchange event</p>
-        <button @click="openModal('create')" class="btn btn-secondary">
+        <button @click="openModal('create')" class="btn btn-secondary" :disabled="isRedirecting">
           Create Event
         </button>
       </div>
+    </div>
+
+    <!-- Full-screen redirect overlay (shown during navigation) -->
+    <div v-if="isRedirecting" class="redirect-overlay">
+      <div class="loading-spinner" aria-hidden="true"></div>
+      <p>Redirecting to your dashboard...</p>
     </div>
 
     <!-- Unified PIN Modal -->
@@ -52,7 +65,7 @@
             <input
               id="pin"
               v-model="modalPin"
-              type="number"
+              type="password"
               placeholder="PIN (4+ digits)"
               pattern="[0-9]{4,}"
               title="At least 4 digits"
@@ -100,6 +113,9 @@ export default {
   name: 'HomeView',
   data() {
     return {
+      // Loading states
+      checkingAuth: true, // Show loading while checking authentication
+      isRedirecting: false, // Show full-screen overlay when redirecting after join/create
       // Modal state
       showModal: false,
       modalMode: 'create', // 'create' or 'join'
@@ -125,16 +141,22 @@ export default {
       const response = await this.$http.get('/api/auth/status', { withCredentials: true })
       if (response.data.authenticated && response.data.user) {
         const user = response.data.user
+        // Show redirect overlay while navigating
+        this.isRedirecting = true
         // Redirect based on role
         if (user.role === 'organizer' && user.event_code) {
           this.$router.push(`/organizer/${user.event_code}`)
         } else if (user.role === 'participant' && user.event_code) {
           this.$router.push(`/participant/${user.event_code}`)
         }
+        return
       }
     } catch (error) {
       // Not authenticated or error, show home page normally
       console.log('User not authenticated, showing home page')
+    } finally {
+      // Always set checkingAuth to false after auth check completes
+      this.checkingAuth = false
     }
   },
   methods: {
@@ -192,6 +214,9 @@ export default {
           }
           localStorage.setItem('giftExchangeAuth', JSON.stringify(authData))
 
+          // Show redirect overlay before navigation
+          this.isRedirecting = true
+
           // Route based on role
           const route = response.data.role === 'organizer' ? 'organizer' : 'participant'
           this.$router.push(`/${route}/${response.data.event_code}`)
@@ -217,6 +242,34 @@ export default {
   max-width: 900px;
   margin: 0 auto;
   min-height: calc(100vh - 2 * var(--spacing-8));
+}
+
+/* Loading states */
+.loading-state,
+.redirect-overlay {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-4);
+  min-height: 50vh;
+}
+
+.loading-state {
+  color: var(--color-text-secondary);
+}
+
+.redirect-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(2px);
+  z-index: 2000;
+  color: var(--color-primary);
+  font-weight: var(--font-weight-medium);
 }
 
 .action-section {

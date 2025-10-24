@@ -52,9 +52,11 @@
             <input
               id="pin"
               v-model="modalPin"
-              type="password"
-              placeholder="PIN (4+ characters)"
-              minlength="4"
+              type="number"
+              placeholder="PIN (4+ digits)"
+              pattern="[0-9]{4,}"
+              title="At least 4 digits"
+              inputmode="numeric"
               class="form-control"
               required
             />

@@ -315,13 +315,11 @@ export default {
   border-radius: var(--radius-xl);
   box-shadow: var(--shadow-lg);
   width: 100%;
-  /* Debug borders to verify equal widths */
-  border: 2px solid red; /* Remove after confirming equal widths */
 }
 
 .waiting-state {
-  background: var(--color-success-light);
-  color: var(--color-success-dark);
+  background: var(--color-warning-light);
+  color: var(--color-warning-dark);
 }
 
 .drawn-state {
@@ -330,7 +328,7 @@ export default {
 }
 
 .draw-state {
-  background: var(--color-accent-light);
+  background: var(--color-primary-light);
   color: var(--color-primary-dark);
 }
 
@@ -633,6 +631,7 @@ export default {
 
 .drawing-section {
   width: 100%;
+  margin-bottom: var(--spacing-6);
 }
 
 

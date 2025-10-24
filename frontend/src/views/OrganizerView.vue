@@ -2,11 +2,37 @@
   <div class="organizer">
     <!-- Main Organizer Interface -->
     <div class="main-content">
+      <div class="drawing-section">
+        <!-- Registration State -->
+        <div v-if="eventData.phase === 'registration'" class="waiting-state">
+          <div class="waiting-icon">⏳</div>
+          <h2>Registration Open</h2>
+          <p>Share the event code <span class='clickable-code' @click='copyEventCode'>{{ codeCopied ? 'Copied!' : eventCode }}</span> to invite participants.</p>
+        </div>
 
-      <div v-if="eventData.phase === 'registration'" class="waiting-state">
-        <div class="waiting-icon">⏳</div>
-        <h2>Registration Open</h2>
-        <p>Share the event code <span class='clickable-code' @click='copyEventCode'>{{ codeCopied ? 'Copied!' : eventCode }}</span> to invite participants.</p>
+        <!-- Participant Drawing States -->
+        <div v-else-if="eventData.phase === 'drawing'">
+          <div v-if="hasDrawn" class="drawn-state">
+            <div class="success-icon">🎁</div>
+            <h2>Gift Assignment Complete!</h2>
+            <p>You have been assigned to buy a gift for:</p>
+            <div class="giftee-name">{{ yourGiftee }}</div>
+            <p class="success-note">Happy gifting!</p>
+          </div>
+
+          <div v-else class="draw-state">
+            <div class="draw-icon">🎯</div>
+            <h2>Ready to Draw!</h2>
+            <p>It's time to discover who you'll be buying a gift for.</p>
+            <button
+              @click="makeDraw"
+              class="btn btn-success btn-large"
+              :disabled="drawing"
+            >
+              {{ drawing ? 'Drawing...' : 'Make Your Draw' }}
+            </button>
+          </div>
+        </div>
       </div>
 
       <!-- Phase-specific controls -->
@@ -24,30 +50,6 @@
           <p v-if="(eventData.joined_count || 0) < 2" class="warning">
             Need at least 2 participants to start drawing
           </p>
-        </div>
-      </div>
-
-      <!-- Participant Drawing Section -->
-      <div v-if="eventData.phase === 'drawing'" class="drawing-section">
-        <div v-if="hasDrawn" class="drawn-state">
-          <div class="success-icon">🎁</div>
-          <h2>Gift Assignment Complete!</h2>
-          <p>You have been assigned to buy a gift for:</p>
-          <div class="giftee-name">{{ yourGiftee }}</div>
-          <p class="success-note">Happy gifting!</p>
-        </div>
-
-        <div v-else class="draw-state">
-          <div class="draw-icon">🎯</div>
-          <h2>Ready to Draw!</h2>
-          <p>It's time to discover who you'll be buying a gift for.</p>
-          <button
-            @click="makeDraw"
-            class="btn btn-success btn-large"
-            :disabled="drawing"
-          >
-            {{ drawing ? 'Drawing...' : 'Make Your Draw' }}
-          </button>
         </div>
       </div>
 
@@ -305,14 +307,31 @@ export default {
 
 
 
-.waiting-state {
+.waiting-state,
+.drawn-state,
+.draw-state {
   text-align: center;
   padding: var(--spacing-8);
   border-radius: var(--radius-xl);
   box-shadow: var(--shadow-lg);
   width: 100%;
+  /* Debug borders to verify equal widths */
+  border: 2px solid red; /* Remove after confirming equal widths */
+}
+
+.waiting-state {
   background: var(--color-success-light);
   color: var(--color-success-dark);
+}
+
+.drawn-state {
+  background: var(--color-success-light);
+  color: var(--color-success-dark);
+}
+
+.draw-state {
+  background: var(--color-accent-light);
+  color: var(--color-primary-dark);
 }
 
 .waiting-icon {
@@ -491,6 +510,7 @@ export default {
 
 .participants-section {
   margin-bottom: 2rem;
+  width: 100%;
 }
 
 .participants-section h3 {
@@ -615,24 +635,7 @@ export default {
   width: 100%;
 }
 
-.drawn-state {
-  background: var(--color-success-light);
-  color: var(--color-success-dark);
-}
 
-.draw-state {
-  background: var(--color-accent-light); /* Temporarily different color */
-  color: var(--color-primary-dark);
-}
-
-.drawn-state,
-.draw-state {
-  text-align: center;
-  padding: var(--spacing-8);
-  border-radius: var(--radius-xl);
-  box-shadow: var(--shadow-lg);
-  width: 100%;
-}
 
 .success-icon,
 .draw-icon {

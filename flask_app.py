@@ -225,14 +225,15 @@ def join_or_create_event():
             return jsonify({'error': 'Invalid PIN for this event', 'success': False}), 401
 
         # PIN correct, but user account doesn't exist - create new participant
-        participants = get_event_participants(event['id'])
+        # Check if this is the first authenticated user (not total participants, but authenticated users)
+        authenticated_users = get_users_for_event(event['id'])
 
-        if len(participants) == 0:
-            # First participant becomes organizer
+        if len(authenticated_users) == 0:
+            # First authenticated user becomes organizer
             role = 'organizer'
             message_part = 'as the organizer'
         else:
-            # Additional participants
+            # Additional authenticated users are participants
             role = 'participant'
             message_part = 'as a participant'
 
@@ -484,8 +485,9 @@ def perform_user_draw(event_code):
         result = perform_draw(event['id'], participant_id, participant_name)
 
         if result['success']:
-            # Update session to reflect drawn state
-            set_current_user(event_code, 'participant', user_id=participant_id, participant_name=participant_name)
+            # Update session to preserve role but update participant info
+            current_role = current_user.get('role')
+            set_current_user(event_code, current_role, user_id=participant_id, participant_name=participant_name)
 
             # Check if event is now complete
             is_complete = is_event_complete(event['id'])

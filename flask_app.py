@@ -11,6 +11,7 @@ from database import (
 import os
 import glob
 import logging
+import re
 from datetime import datetime
 
 # Configure logging
@@ -117,9 +118,9 @@ def create_new_event():
         if not data or 'pin' not in data:
             return jsonify({'error': 'PIN is required', 'success': False}), 400
 
-        pin = data['pin']
-        if not isinstance(pin, str) or len(pin) < 4:
-            return jsonify({'error': 'PIN must be at least 4 characters', 'success': False}), 400
+        pin = str(data['pin']).strip()
+        if not re.match(r'^[0-9]{4,}$', pin):
+            return jsonify({'error': 'PIN must be at least 4 digits and contain only numbers', 'success': False}), 400
 
         event_id, event_code = create_event(pin)
 
@@ -147,8 +148,9 @@ def join_or_create_event():
         if not pin:
             return jsonify({'error': 'PIN is required', 'success': False}), 400
 
-        if not isinstance(pin, str) or len(pin) < 4:
-            return jsonify({'error': 'PIN must be at least 4 characters', 'success': False}), 400
+        pin = str(pin).strip()
+        if not re.match(r'^[0-9]{4,}$', pin):
+            return jsonify({'error': 'PIN must be at least 4 digits and contain only numbers', 'success': False}), 400
 
         # Username is required for both joining and creating events
         username = data.get('username', '').strip()
